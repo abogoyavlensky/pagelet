@@ -216,13 +216,15 @@ pagelet/
 - [x] **Step 4: Commit**
   `git commit -m "Deploy to uncloud on every push to master"` (add `deploy.yml` first).
 
+> Deviation (review): the post-deploy health check retries 60 times, 2 s apart (about two minutes), not 30, so a slow first certificate does not turn a successful deploy red.
+
 ### Task 5: Docs and backlog
 
 **Files:**
 - Modify: `README.md`, `docs/backlog/letgo-http-reads-whole-request-body.md`
 - Create: `docs/backlog/duckdb-backups.md`
 
-- [ ] **Step 1: README Deployment section**
+- [x] **Step 1: README Deployment section**
   Replace the "Next: compose.yaml ..." paragraph with what exists:
   - pushes to master deploy to `https://pagelet.absky.dev` on the `personal` cluster through `deploy.yml`;
   - the repository settings (variables `SERVER_IP`, `APP_DOMAIN`; secrets `SSH_PRIVATE_KEY`, `ADMIN_PASSWORD`) and the DNS record;
@@ -230,7 +232,7 @@ pagelet/
   - that only CI builds what ships (the glibc note);
   - how to read logs: `uc --context personal --connect root@<SERVER_IP> logs pagelet`.
 
-- [ ] **Step 2: Backlog**
+- [x] **Step 2: Backlog**
   - `docs/backlog/duckdb-backups.md`, starting `**Status: open**`: the DuckDB file on the server has no backup. Options to weigh:
     - a nightly `EXPORT DATABASE` or `COPY ... TO` Parquet from inside the app;
     - a stop-and-copy on the host;
@@ -241,7 +243,7 @@ pagelet/
 
   Two commits, as AGENTS.md asks: docs first, then `Backlog: DuckDB backups; note the Caddy body limit`.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
   `git commit -am "docs: deployment on uncloud"`, then the backlog commit.
 
 ### Task 6: First deploy and verification
