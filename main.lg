@@ -1,0 +1,17 @@
+(ns main
+  (:require [http :as http]
+            [pagelet.system :as system]))
+
+;; pagelet: cookie-less web analytics from a single binary. Run with
+;; `lgx run`, then open http://localhost:8080. See README.md for the
+;; environment variables.
+
+(defn -main []
+  (let [system (system/start!)]
+    ;; http/start serves in the background; wait blocks until the server
+    ;; stops, which keeps the process up.
+    (http/wait (:pagelet.server/http system))))
+
+;; lg -b runs top-level forms at compile time, so without this guard
+;; `lgx build` would open the database and start a server while bundling.
+(when-not *compiling-aot* (-main))

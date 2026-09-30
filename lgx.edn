@@ -1,0 +1,68 @@
+{:paths ["src"]
+ ;; resources/public holds the tracker and the built dashboard; lgx build
+ ;; embeds them into the binary.
+ :resource-paths ["resources"]
+ :main "main.lg"
+
+ ;; DuckDB and the user agent parser are Go packages, so this app runs on
+ ;; an lg that lgx builds from :lg-version with the Go toolchain. The
+ ;; DuckDB driver is cgo: builds need gcc and cannot cross-compile.
+ :lg-runtime :built
+ :lg-version "1.13.0"
+
+ :targets {:bin {:out "bin/pagelet"}}
+
+ :deps {;; DuckDB over Go's database/sql; brings the sql layer and the cgo
+        ;; driver in transitively.
+        abogoyavlensky/letgo-duckdb
+        {:git/url "https://github.com/abogoyavlensky/letgo-packages"
+         :git/tag "duckdb-v0.2.0"
+         :deps/root "duckdb"}
+
+        ;; Migrations: a ragtime DataStore and Migration over the sql layer.
+        ;; Same release round as duckdb-v0.2.0, so both name sql-v0.2.0.
+        abogoyavlensky/letgo-ragtime
+        {:git/url "https://github.com/abogoyavlensky/letgo-packages"
+         :git/tag "ragtime-v0.2.0"
+         :deps/root "ragtime"}
+
+        ;; integrant wires db, ingest buffer, handler and server. It depends
+        ;; on weavejester/dependency; lgx does not read a plain Clojure lib's
+        ;; deps.edn transitively, so both are listed.
+        dev.weavejester/dependency
+        {:git/url "https://github.com/weavejester/dependency"
+         :git/tag "1.0.1"}
+        dev.weavejester/integrant
+        {:git/url "https://github.com/weavejester/integrant"
+         :git/tag "1.0.1"}
+
+        ;; Routing.
+        askonomm/ruuter
+        {:git/url "https://git.nmm.ee/asko/ruuter"
+         :git/tag "v2.1.1"}
+
+        ;; User agent parsing, generated bindings and no shim. The alias
+        ;; must be the package path's last segment.
+        github.com/mileusna/useragent {:go/version "v1.3.5" :go/interop "useragent"}}
+
+ :tasks
+ {;; Browser tests: build the binary that ships, then let Playwright start
+  ;; it on a test port with a throwaway database.
+  e2e
+  {:doc "Build the binary and run the browser tests against it"
+   :do [{:task lgx:build}
+        {:sh "cd e2e && npx playwright test"}]}
+
+  e2e-setup
+  {:doc "Install the e2e dependencies and the headless browser"
+   :do {:sh "cd e2e && npm ci && npx playwright install chromium-headless-shell"}}
+
+  docker
+  {:doc "Build the binary, then the image, and smoke-test it"
+   :do [{:task lgx:build}
+        {:sh "scripts/docker-smoke.sh"}]}
+
+  check
+  {:doc "Unit tests, then the browser tests"
+   :do [{:task lgx:test}
+        {:task e2e}]}}}

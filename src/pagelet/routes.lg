@@ -1,0 +1,30 @@
+(ns pagelet.routes
+  (:require [integrant.core :as ig]
+            [json :as json]
+            [ruuter.core :as r]))
+
+;; The HTTP handler: a Ring-style function, and the integrant component
+;; that builds it. Tests call `handler` directly.
+
+(defn- json-response [status data]
+  {:status status
+   :headers {"Content-Type" "application/json"}
+   :body (json/write-json data)})
+
+(defn- routes []
+  [{:path "/api/health"
+    :method :get
+    :response (fn [_] (json-response 200 {:ok true}))}
+
+   {:path :not-found
+    :response (fn [_] (json-response 404 {:error "not found"}))}])
+
+(defn handler
+  "A Ring-style handler: request map in, response map out."
+  []
+  (let [table (routes)]
+    (fn [req]
+      (r/route table req))))
+
+(defmethod ig/init-key ::handler [_ _]
+  (handler))

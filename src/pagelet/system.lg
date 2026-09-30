@@ -1,0 +1,36 @@
+(ns pagelet.system
+  (:require [integrant.core :as ig]
+            [pagelet.routes]
+            [pagelet.server]
+            [string :as str]))
+
+;; One config map describes the app; integrant starts the components in
+;; dependency order and halts them in reverse.
+;;
+;; Everything a deployment changes is an environment variable with a
+;; development default. `config` takes the lookup function so tests can
+;; pass a map instead of touching the process environment.
+
+(defn- env [lookup name default]
+  (let [v (lookup name)]
+    (if (str/blank? v) default v)))
+
+(defn- env-int [lookup name default]
+  (Integer/parseInt (env lookup name (str default))))
+
+(defn- env-bool [lookup name default]
+  (= "true" (env lookup name (str default))))
+
+(defn config
+  ([] (config os/getenv))
+  ([lookup]
+   {:pagelet.routes/handler {}
+
+    :pagelet.server/http {:addr (str ":" (env lookup "PORT" "8080"))
+                          :handler (ig/ref :pagelet.routes/handler)}}))
+
+(defn start!
+  ([] (start! (config)))
+  ([config] (ig/init config)))
+
+(defn stop! [system] (ig/halt! system))
