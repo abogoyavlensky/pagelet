@@ -121,12 +121,14 @@
 
 (def ^:private pages* (ranked "path"))
 (def ^:private referrers* (ranked "referrer"))
+(def ^:private countries* (ranked "country"))
 (def ^:private browsers* (ranked "browser"))
 (def ^:private os* (ranked "os"))
 (def ^:private devices* (ranked "device"))
 
 (defn pages [conn site-id p] (named (pages* conn site-id p)))
 (defn referrers [conn site-id p] (named (referrers* conn site-id p)))
+(defn countries [conn site-id p] (named (countries* conn site-id p)))
 (defn browsers [conn site-id p] (named (browsers* conn site-id p)))
 (defn operating-systems [conn site-id p] (named (os* conn site-id p)))
 (defn devices [conn site-id p] (named (devices* conn site-id p)))
@@ -151,6 +153,7 @@
    :timeseries (timeseries conn site-id p)
    :pages (pages conn site-id p)
    :referrers (referrers conn site-id p)
+   :countries (countries conn site-id p)
    :browsers (browsers conn site-id p)
    :os (operating-systems conn site-id p)
    :devices (devices conn site-id p)

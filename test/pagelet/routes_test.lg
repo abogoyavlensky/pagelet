@@ -126,7 +126,8 @@
             event (fn [payload & [headers]]
                     (call handler :post "/api/event" (json/write-json payload)
                           (merge {"content-type" "text/plain" "user-agent" chrome} headers)))]
-        (let [res (event {:d "example.com" :u "https://example.com/pricing" :r "" :n "pageview"})]
+        (let [res (event {:d "example.com" :u "https://example.com/pricing" :r "" :n "pageview"
+                          :z "Europe/Amsterdam"})]
           (is (= 202 (:status res)))
           (is (= "*" (get-in res [:headers "Access-Control-Allow-Origin"])))
           (is (= "" (:body res))))
@@ -141,7 +142,8 @@
           (is (= 1 (get-in stats [:json :totals :pageviews])))
           (is (= "hour" (get-in stats [:json :period :bucket])))
           (is (= 24 (count (get-in stats [:json :timeseries]))))
-          (is (= [{:name "/pricing" :visitors 1 :pageviews 1}] (get-in stats [:json :pages]))))
+          (is (= [{:name "/pricing" :visitors 1 :pageviews 1}] (get-in stats [:json :pages])))
+          (is (= [{:name "NL" :visitors 1 :pageviews 1}] (get-in stats [:json :countries]))))
         (is (= 200 (:status (call handler :get (str "/api/sites/" (:id site) "/stats") nil me))))
         (is (= 200 (:status (call handler :get (str "/api/sites/" (:id site)
                                                     "/stats?period=custom&from=2026-09-01&to=2026-09-03")

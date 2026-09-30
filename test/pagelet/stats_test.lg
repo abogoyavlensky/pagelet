@@ -19,16 +19,19 @@
 (defn- seeded []
   (let [conn (duckdb/open "")]
     (migrations/migrate! conn)
-    (let [a {:visitor "va" :browser "Chrome"}
-          b {:visitor "vb" :browser "Firefox"}]
+    (let [a {:visitor "va" :browser "Chrome" :timezone "Europe/Amsterdam" :country "NL"}
+          b {:visitor "vb" :browser "Firefox"}
+          b-de (assoc b :timezone "Europe/Berlin" :country "DE")]
       ;; 2026-09-08: a alone, 6 views, 4 of them from Hacker News.
       (insert! conn "2026-09-08 10:00:00" 4 (assoc a :path "/" :referrer "news.ycombinator.com"))
       (insert! conn "2026-09-08 10:30:00" 2 (assoc a :path "/pricing"))
-      ;; 2026-09-09: b alone, 8 views (5 from Google) and one signup.
-      (insert! conn "2026-09-09 12:00:00" 5 (assoc b :path "/" :referrer "google.com"))
-      (insert! conn "2026-09-09 12:10:00" 3 (assoc b :path "/docs"))
-      (insert! conn "2026-09-09 12:20:00" 1 (assoc b :path "/docs" :name "signup"))
-      ;; 2026-09-10: both, 14 views, internal referrers stored as null.
+      ;; 2026-09-09: b alone, from Germany, 8 views (5 from Google) and one
+      ;; signup.
+      (insert! conn "2026-09-09 12:00:00" 5 (assoc b-de :path "/" :referrer "google.com"))
+      (insert! conn "2026-09-09 12:10:00" 3 (assoc b-de :path "/docs"))
+      (insert! conn "2026-09-09 12:20:00" 1 (assoc b-de :path "/docs" :name "signup"))
+      ;; 2026-09-10: both, 14 views, internal referrers stored as null; b
+      ;; sends no time zone.
       (insert! conn "2026-09-10 09:00:00" 6 (assoc a :path "/pricing"))
       (insert! conn "2026-09-10 09:05:00" 4 (assoc b :path "/pricing"))
       (insert! conn "2026-09-10 09:10:00" 4 (assoc a :path "/"))
@@ -80,6 +83,11 @@
     (is (= [{:name "google.com" :visitors 1 :pageviews 5}
             {:name "news.ycombinator.com" :visitors 1 :pageviews 4}]
            (:referrers s)))
+    ;; A visitor tie broken by pageviews; b's rows without a country are
+    ;; not a row.
+    (is (= [{:name "NL" :visitors 1 :pageviews 16}
+            {:name "DE" :visitors 1 :pageviews 8}]
+           (:countries s)))
     (is (= [{:name "Chrome" :visitors 1 :pageviews 16}
             {:name "Firefox" :visitors 1 :pageviews 12}]
            (:browsers s)))
@@ -106,6 +114,7 @@
     (is (= {:visitors 0 :pageviews 0 :views_per_visitor 0.0} (:totals s)))
     (is (= [0 0 0] (map :pageviews (:timeseries s))))
     (is (= [] (:pages s)))
+    (is (= [] (:countries s)))
     (is (= [] (:events s)))
     (duckdb/close! conn)))
 
