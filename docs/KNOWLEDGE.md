@@ -82,3 +82,12 @@ post one event, `kill -TERM` at once, and the file holds that event, so
 
 let-go core has `sleep` (milliseconds) and `flush!`; defining either in a
 namespace prints a redefinition warning unless excluded.
+
+## Headless Chromium is a bot (2026-09-30)
+
+Playwright's `chromium-headless-shell` sends
+`... HeadlessChrome/141.0.7390.37 ...`, which the useragent library flags
+as `Bot`, so ingest drops its events (202, nothing stored). A page-level
+`userAgent` option does **not** help: `navigator.sendBeacon` requests go out
+from the browser process with the original agent. Launch the browser with
+`--user-agent=<a desktop Chrome string>` instead; that covers beacons too.
