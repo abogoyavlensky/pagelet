@@ -151,6 +151,8 @@ pagelet/
 - [x] **Step 3: Commit**
   `git add .mise.toml compose.yaml && git commit -m "compose.yaml for uncloud; pin uc"`
 
+> Deviation (review): the Caddy block uses `${APP_DOMAIN:?APP_DOMAIN must be set}`, so an unset variable fails `uc deploy` instead of Caddy silently dropping a bare ` {` block while the deploy reports success.
+> Deviation (process): codex hit its usage limit (reset 2026-10-01 00:02), so from Task 2 on the per-task review is an independent review subagent with the same brief (defects only, must/should fix).
 > Deviation: uc has no `--version` flag; `mise which uc` resolves to `installs/uc/0.20.0/uc` (and `uc version` prints a banner).
 
 ### Task 3: Validate the compose file offline
@@ -159,7 +161,7 @@ pagelet/
 - Create: `.tmp/compose-check/` (scratch, not committed)
 - Modify: `docs/KNOWLEDGE.md`
 
-- [ ] **Step 1: Load it through uncloud's own code**
+- [x] **Step 1: Load it through uncloud's own code**
   In `/tmp/uncloud` (a clone of `v0.20.0`), write a scratch Go test or `main` that calls `compose.LoadProject` on pagelet's `compose.yaml` with `APP_DOMAIN=pagelet.absky.dev` and `ADMIN_PASSWORD=x` in the environment, then `ServiceSpecFromCompose` for `pagelet` and `spec.Validate()`. Read the real signatures in `pkg/client/compose/` first.
   It must print and assert:
   - `spec.UpdateConfig.Order == "stop-first"`;
@@ -170,11 +172,13 @@ pagelet/
 
   Run it with Go 1.27 (`mise exec -- go run` or `go test` in the clone). Expected: all assertions pass, no validation error.
 
-- [ ] **Step 2: Record**
+- [x] **Step 2: Record**
   A KNOWLEDGE.md section "Deploying on uncloud" with the update-order rule (file:line refs from the Design), what the offline check printed, and how to rerun it. Delete the scratch code from `/tmp/uncloud`.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
   `git commit -am "docs: uncloud update order and the offline compose check"`
+
+> Deviation: the check ran as a scratch `go test` in `/tmp/uncloud/pkg/client/compose/` (Go 1.27.1 from mise), printing the spec as JSON; it also confirmed an unset `APP_DOMAIN` now fails the load. The image-tag format it showed is recorded too.
 
 ### Task 4: Deploy workflow
 
