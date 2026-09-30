@@ -1,0 +1,70 @@
+name: test
+
+on:
+  push:
+  pull_request:
+
+concurrency:
+  group: test-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # lgx, Go and Node at the versions in .mise.toml. The DuckDB driver is
+      # cgo, so the build also needs gcc, which ubuntu-latest has. No
+      # CGO_ENABLED=0 anywhere: it would drop the driver.
+      - uses: jdx/mise-action@v3
+
+      # The app runs on a custom lg that lgx builds with the Go toolchain
+      # (:lg-runtime :built), DuckDB linked in; about 40 s cold. The build is
+      # keyed on lgx.edn, so a run that keeps the Go coord set reuses it.
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+            ~/.lgx/runtimes
+          key: runtimes-${{ runner.os }}-${{ hashFiles('lgx.edn') }}
+          restore-keys: runtimes-${{ runner.os }}-
+
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('e2e/package-lock.json') }}
+
+      - name: Unit tests
+        run: lgx test
+
+      - name: Install the dashboard
+        run: lgx ui-install
+
+      # e2e-setup installs the browser without system packages (it runs
+      # without sudo on a laptop); the runner adds them.
+      - name: Install the browser tests
+        run: |
+          lgx e2e-setup
+          cd e2e && npx playwright install-deps chromium-headless-shell
+
+      # Builds the dashboard and bin/pagelet, then Playwright starts the
+      # binary on a test port and drives headless Chromium through the
+      # tracker and the dashboard.
+      - name: Browser tests
+        run: lgx e2e
+
+      # The image around the binary this runner built (glibc 2.39, which
+      # trixie satisfies), started and asked for /api/health.
+      - name: Smoke-test the image
+        run: lgx docker
+
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: |
+            e2e/playwright-report
+            e2e/test-results
+          retention-days: 7
