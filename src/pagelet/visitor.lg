@@ -1,0 +1,66 @@
+(ns pagelet.visitor
+  (:require [hash :as hash]
+            [string :as str]))
+
+;; The pieces of a request that identify a visitor without storing who
+;; they are: the client IP (read, hashed, dropped), the daily visitor hash,
+;; and the path and referrer host of the URLs the tracker sends.
+;;
+;; URLs are cut apart with one regex, not a URL library: scheme, then
+;; everything up to the first /, ? or # is the authority, then the path up
+;; to ? or #.
+
+(defn client-ip
+  "The client's address. With `trust-proxy?`, the first entry of
+   X-Forwarded-For when the header is there; otherwise the connection's
+   :remote-addr without its port (\"1.2.3.4:5678\" -> \"1.2.3.4\",
+   \"[::1]:5678\" -> \"::1\")."
+  [req trust-proxy?]
+  (let [forwarded (get-in req [:headers "x-forwarded-for"])
+        first-hop (when-not (str/blank? forwarded)
+                    (str/trim (first (str/split forwarded #","))))]
+    (if (and trust-proxy? (not (str/blank? first-hop)))
+      first-hop
+      (let [addr (str (:remote-addr req))]
+        (if-let [[_ v6] (re-find #"^\[([^\]]*)\](?::\d+)?$" addr)]
+          v6
+          (if-let [[_ v4] (re-find #"^([^:]+):\d+$" addr)]
+            v4
+            addr))))))
+
+(defn visitor-hash
+  "The visitor id for one day: sha256 of the day's salt, the site, the IP
+   and the user agent. 64 lowercase hex characters."
+  [salt site-id ip ua]
+  (hash/sha256 (str salt "|" site-id "|" ip "|" ua)))
+
+(def ^:private absolute-url-re
+  ;; scheme://authority then the path, stopping at a query or fragment.
+  #"^[a-zA-Z][a-zA-Z0-9+.-]*://([^/?#]*)([^?#]*)")
+
+(defn path-of
+  "The path of `url`, without its query and fragment; \"/\" when it has
+   none."
+  [url]
+  (let [url (str url)
+        path (if-let [[_ _ path] (re-find absolute-url-re url)]
+               path
+               (when (str/starts-with? url "/")
+                 (second (re-find #"^([^?#]*)" url))))]
+    (if (str/blank? path) "/" path)))
+
+(defn- strip-www [host]
+  (if (str/starts-with? host "www.") (subs host 4) host))
+
+(defn referrer-host
+  "The host of `referrer`, lower-cased and without www.; nil when it is
+   blank, not an absolute URL, or the site's own domain."
+  [referrer site-domain]
+  (when-let [[_ authority] (re-find absolute-url-re (str referrer))]
+    (let [host (-> authority
+                   (str/replace #"^.*@" "")
+                   (str/replace #":\d*$" "")
+                   str/lower-case)]
+      (when (and (re-matches #"[a-z0-9._-]+" host)
+                 (not= (strip-www host) (strip-www (str/lower-case (str site-domain)))))
+        (strip-www host)))))

@@ -1,0 +1,44 @@
+(ns pagelet.ua
+  (:require [string :as str]
+            [useragent :as useragent]))
+
+;; The user agent as the dashboard shows it: a browser, an OS, a device
+;; class, and whether it is a bot. Parsing is github.com/mileusna/useragent
+;; through generated bindings. Its UserAgent struct is opaque to let-go's
+;; field syntax: fields are read as map keys, (:Name u), not (.-Name u).
+
+;; The library's names that the dashboard shows differently. Anything not
+;; here is shown as the library names it.
+(def ^:private browser-names
+  {"Samsung Browser" "Samsung Internet"
+   "Opera Mini" "Opera"
+   "Opera Touch" "Opera"})
+
+(def ^:private os-names
+  {"Mac OS X" "macOS"
+   "CrOS" "ChromeOS"})
+
+(defn- label [names v]
+  (let [v (str v)]
+    (if (str/blank? v) "Other" (get names v v))))
+
+(defn- device [u]
+  (cond
+    (:Mobile u) "mobile"
+    (:Tablet u) "tablet"
+    (:Desktop u) "desktop"
+    :else "other"))
+
+(def ^:private unknown
+  {:browser "Other" :os "Other" :device "other" :bot? false})
+
+(defn classify
+  "{:browser :os :device :bot?} for a User-Agent header value."
+  [ua-string]
+  (if (str/blank? (str ua-string))
+    unknown
+    (let [u (useragent/Parse (str ua-string))]
+      {:browser (label browser-names (:Name u))
+       :os (label os-names (:OS u))
+       :device (device u)
+       :bot? (boolean (:Bot u))})))

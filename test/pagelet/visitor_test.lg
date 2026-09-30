@@ -1,0 +1,47 @@
+(ns pagelet.visitor-test
+  (:require [clojure.test :refer [deftest is]]
+            [pagelet.visitor :as v]))
+
+(deftest visitor-hash-is-stable-per-salt
+  (let [h (v/visitor-hash "salt" "site" "1.2.3.4" "ua")]
+    (is (= h (v/visitor-hash "salt" "site" "1.2.3.4" "ua")))
+    (is (not= h (v/visitor-hash "other" "site" "1.2.3.4" "ua")))
+    (is (not= h (v/visitor-hash "salt" "site2" "1.2.3.4" "ua")))
+    (is (re-matches #"[0-9a-f]{64}" h))))
+
+(deftest client-ip-cases
+  (let [req {:remote-addr "10.0.0.1:5678"
+             :headers {"x-forwarded-for" " 1.2.3.4 , 10.0.0.2"}}]
+    ;; Trusted, header present: its first entry.
+    (is (= "1.2.3.4" (v/client-ip req true)))
+    ;; Trusted, no header: the connection.
+    (is (= "10.0.0.1" (v/client-ip (dissoc req :headers) true)))
+    ;; Untrusted: the header is ignored.
+    (is (= "10.0.0.1" (v/client-ip req false))))
+  (is (= "::1" (v/client-ip {:remote-addr "[::1]:5678"} false)))
+  (is (= "2001:db8::1" (v/client-ip {:remote-addr "[2001:db8::1]:443"} false)))
+  (is (= "1.2.3.4" (v/client-ip {:remote-addr "1.2.3.4"} false))))
+
+(deftest path-of-cases
+  (is (= "/pricing" (v/path-of "https://example.com/pricing?utm_source=x")))
+  (is (= "/docs/a" (v/path-of "https://example.com/docs/a#intro")))
+  (is (= "/" (v/path-of "https://example.com")))
+  (is (= "/" (v/path-of "https://example.com?x=1")))
+  (is (= "/" (v/path-of "https://example.com/")))
+  (is (= "/a" (v/path-of "http://localhost:8080/a")))
+  (is (= "/rel" (v/path-of "/rel?x")))
+  (is (= "/" (v/path-of "garbage")))
+  (is (= "/" (v/path-of nil))))
+
+(deftest referrer-host-cases
+  (is (= "news.ycombinator.com" (v/referrer-host "https://news.ycombinator.com/item?id=1" "example.com")))
+  (is (= "google.com" (v/referrer-host "https://www.Google.com/" "example.com")))
+  (is (= "blog.example.org" (v/referrer-host "http://blog.example.org:8080/x" "example.com")))
+  ;; Internal referrers, with or without www on either side.
+  (is (nil? (v/referrer-host "https://example.com/pricing" "example.com")))
+  (is (nil? (v/referrer-host "https://www.example.com/" "example.com")))
+  (is (nil? (v/referrer-host "https://example.com/" "www.example.com")))
+  (is (nil? (v/referrer-host "" "example.com")))
+  (is (nil? (v/referrer-host nil "example.com")))
+  (is (nil? (v/referrer-host "not a url" "example.com")))
+  (is (nil? (v/referrer-host "https://exa mple.com/" "example.com"))))
