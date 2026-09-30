@@ -1,0 +1,115 @@
+(ns pagelet.stats-test
+  (:require [clojure.test :refer [deftest is]]
+            [duckdb.core :as duckdb]
+            [pagelet.db :as db]
+            [pagelet.migrations :as migrations]
+            [pagelet.stats :as stats]))
+
+;; The report queries over an in-memory DuckDB seeded with known events on
+;; fixed days. "Today" is 2026-09-10 throughout, passed in as now-day.
+
+(def ^:private now-day "2026-09-10")
+
+(defn- insert! [conn ts n {:keys [site name visitor path referrer browser]}]
+  (dotimes [_ n]
+    (db/execute! conn ["insert into events values (?, ?::timestamp, ?, ?, ?, ?, ?, 'macOS', 'desktop', null)"
+                       (or site "s1") ts (or name "pageview") visitor path referrer browser])))
+
+(defn- seeded []
+  (let [conn (duckdb/open "")]
+    (migrations/migrate! conn)
+    (let [a {:visitor "va" :browser "Chrome"}
+          b {:visitor "vb" :browser "Firefox"}]
+      ;; 2026-09-08: a alone, 6 views, 4 of them from Hacker News.
+      (insert! conn "2026-09-08 10:00:00" 4 (assoc a :path "/" :referrer "news.ycombinator.com"))
+      (insert! conn "2026-09-08 10:30:00" 2 (assoc a :path "/pricing"))
+      ;; 2026-09-09: b alone, 8 views (5 from Google) and one signup.
+      (insert! conn "2026-09-09 12:00:00" 5 (assoc b :path "/" :referrer "google.com"))
+      (insert! conn "2026-09-09 12:10:00" 3 (assoc b :path "/docs"))
+      (insert! conn "2026-09-09 12:20:00" 1 (assoc b :path "/docs" :name "signup"))
+      ;; 2026-09-10: both, 14 views, internal referrers stored as null.
+      (insert! conn "2026-09-10 09:00:00" 6 (assoc a :path "/pricing"))
+      (insert! conn "2026-09-10 09:05:00" 4 (assoc b :path "/pricing"))
+      (insert! conn "2026-09-10 09:10:00" 4 (assoc a :path "/"))
+      ;; Another site's events never show up.
+      (insert! conn "2026-09-10 09:00:00" 3 {:site "s2" :visitor "vx" :path "/" :browser "Chrome"}))
+    ;; Someone on the site right now.
+    (db/execute! conn ["insert into events values ('s1', (now() at time zone 'UTC') - interval 2 minute,
+                        'pageview', 'vc', '/', null, 'Chrome', 'macOS', 'desktop', null)"])
+    conn))
+
+(deftest periods
+  (let [conn (duckdb/open "")]
+    (is (= {:from "2026-09-04T00:00:00" :to-exclusive "2026-09-11T00:00:00" :bucket "day"}
+           (stats/period conn {:period "7d"} now-day)))
+    (is (= (stats/period conn {} now-day) (stats/period conn {:period "7d"} now-day)))
+    (is (= {:from "2026-08-12T00:00:00" :to-exclusive "2026-09-11T00:00:00" :bucket "day"}
+           (stats/period conn {:period "30d"} now-day)))
+    (is (= {:from "2026-09-10T00:00:00" :to-exclusive "2026-09-11T00:00:00" :bucket "hour"}
+           (stats/period conn {:period "today"} now-day)))
+    (is (= {:from "2026-08-30T00:00:00" :to-exclusive "2026-09-02T00:00:00" :bucket "day"}
+           (stats/period conn {:period "custom" :from "2026-08-30" :to "2026-09-01"} now-day)))
+    (is (= "hour" (:bucket (stats/period conn {:period "custom" :from "2026-09-09" :to "2026-09-09"} now-day))))
+    (is (:error (stats/period conn {:period "custom" :from "2026-02-30" :to "2026-03-01"} now-day)))
+    (is (:error (stats/period conn {:period "custom" :from "2026-09-02" :to "2026-09-01"} now-day)))
+    (is (:error (stats/period conn {:period "custom" :from "x"} now-day)))
+    (is (:error (stats/period conn {:period "1y"} now-day)))
+    (is (re-matches #"\d{4}-\d{2}-\d{2}" (stats/today conn)))
+    (duckdb/close! conn)))
+
+(deftest seven-days
+  (let [conn (seeded)
+        p (stats/period conn {:period "7d"} now-day)
+        s (stats/stats conn "s1" p)]
+    (is (= {:from "2026-09-04T00:00:00" :to "2026-09-11T00:00:00" :bucket "day"} (:period s)))
+    (is (= {:visitors 2 :pageviews 28 :views_per_visitor 14.0} (:totals s)))
+    (is (= [{:t "2026-09-04" :visitors 0 :pageviews 0}
+            {:t "2026-09-05" :visitors 0 :pageviews 0}
+            {:t "2026-09-06" :visitors 0 :pageviews 0}
+            {:t "2026-09-07" :visitors 0 :pageviews 0}
+            {:t "2026-09-08" :visitors 1 :pageviews 6}
+            {:t "2026-09-09" :visitors 1 :pageviews 8}
+            {:t "2026-09-10" :visitors 2 :pageviews 14}]
+           (:timeseries s)))
+    (is (= [{:name "/" :visitors 2 :pageviews 13}
+            {:name "/pricing" :visitors 2 :pageviews 12}
+            {:name "/docs" :visitors 1 :pageviews 3}]
+           (:pages s)))
+    ;; Nulls (internal or no referrer) are not a row.
+    (is (= [{:name "google.com" :visitors 1 :pageviews 5}
+            {:name "news.ycombinator.com" :visitors 1 :pageviews 4}]
+           (:referrers s)))
+    (is (= [{:name "Chrome" :visitors 1 :pageviews 16}
+            {:name "Firefox" :visitors 1 :pageviews 12}]
+           (:browsers s)))
+    (is (= [{:name "macOS" :visitors 2 :pageviews 28}] (:os s)))
+    (is (= [{:name "desktop" :visitors 2 :pageviews 28}] (:devices s)))
+    (is (= [{:name "signup" :count 1 :visitors 1}] (:events s)))
+    (duckdb/close! conn)))
+
+(deftest hours
+  (let [conn (seeded)
+        today (stats/timeseries conn "s1" (stats/period conn {:period "today"} now-day))
+        one-day (stats/timeseries conn "s1" (stats/period conn {:period "custom" :from "2026-09-09" :to "2026-09-09"} now-day))]
+    (is (= 24 (count today)))
+    (is (= "2026-09-10T00:00" (:t (first today))))
+    (is (= {:t "2026-09-10T09:00" :visitors 2 :pageviews 14} (nth today 9)))
+    (is (= 14 (reduce + (map :pageviews today))))
+    (is (= 24 (count one-day)))
+    (is (= {:t "2026-09-09T12:00" :visitors 1 :pageviews 8} (nth one-day 12)))
+    (duckdb/close! conn)))
+
+(deftest an-empty-period
+  (let [conn (seeded)
+        s (stats/stats conn "s1" (stats/period conn {:period "custom" :from "2026-01-01" :to "2026-01-03"} now-day))]
+    (is (= {:visitors 0 :pageviews 0 :views_per_visitor 0.0} (:totals s)))
+    (is (= [0 0 0] (map :pageviews (:timeseries s))))
+    (is (= [] (:pages s)))
+    (is (= [] (:events s)))
+    (duckdb/close! conn)))
+
+(deftest online-now
+  (let [conn (seeded)]
+    (is (= {:online 1} (stats/realtime conn "s1")))
+    (is (= {:online 0} (stats/realtime conn "s2")))
+    (duckdb/close! conn)))
