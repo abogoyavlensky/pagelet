@@ -8,6 +8,7 @@ import SiteForm from '../components/SiteForm'
 import Snippet from '../components/Snippet'
 import StatRow, { type Metric } from '../components/StatRow'
 import Timeseries from '../components/Timeseries'
+import { country } from '../format'
 import { useSignedOutOn } from '../session'
 
 // The period lives in the URL (?period=7d, ?period=custom&from=..&to=..)
@@ -142,10 +143,12 @@ function Report({ stats, metric, onMetric, dim }: {
       <div className="grid gap-x-14 gap-y-12 pt-14 min-[720px]:grid-cols-2">
         <RankedList title="Pages" columns={vp} items={rows(stats.pages)} style={delay(4)} />
         <RankedList title="Referrers" columns={vp} items={rows(stats.referrers)} style={delay(5)} />
-        <RankedList title="Browsers" columns={vp} items={rows(stats.browsers)} style={delay(6)} />
-        <RankedList title="OS" columns={vp} items={rows(stats.os)} style={delay(7)} />
-        <RankedList title="Devices" columns={vp} items={rows(stats.devices)} style={delay(8)} />
-        <RankedList title="Events" columns={['Count', 'Visitors']} style={delay(9)}
+        <RankedList title="Countries" columns={vp} style={delay(6)}
+          items={rows(stats.countries).map((r) => ({ ...r, name: country(r.name) }))} />
+        <RankedList title="Browsers" columns={vp} items={rows(stats.browsers)} style={delay(7)} />
+        <RankedList title="OS" columns={vp} items={rows(stats.os)} style={delay(8)} />
+        <RankedList title="Devices" columns={vp} items={rows(stats.devices)} style={delay(9)} />
+        <RankedList title="Events" columns={['Count', 'Visitors']} style={delay(10)}
           items={stats.events.map((e) => ({ name: e.name, a: e.count, b: e.visitors }))} />
       </div>
     </div>

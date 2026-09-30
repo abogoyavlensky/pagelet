@@ -5,8 +5,8 @@ type Item = { name: string; a: number; b: number }
 /**
  * A panel of the top ten: each row's name over a bar proportional to the
  * list's largest first column, then two right-aligned counts. Pages,
- * referrers, browsers, OS and devices show visitors and pageviews; events
- * show count and visitors.
+ * referrers, countries, browsers, OS and devices show visitors and
+ * pageviews; events show count and visitors.
  */
 export default function RankedList({ title, columns, items, style }: {
   title: string

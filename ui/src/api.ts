@@ -21,6 +21,7 @@ export type Stats = {
   timeseries: { t: string; visitors: number; pageviews: number }[]
   pages: Row[]
   referrers: Row[]
+  countries: Row[]
   browsers: Row[]
   os: Row[]
   devices: Row[]

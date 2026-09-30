@@ -1,6 +1,7 @@
-// Number and date formatting for the dashboard. Every date the server sends
-// is UTC and naive ("2026-09-23", "2026-09-30T13:00"); they are shown as
-// written, never shifted into the browser's zone.
+// Number, date and country formatting for the dashboard. Every date the
+// server sends is UTC and naive ("2026-09-23", "2026-09-30T13:00"); they are
+// shown as written, never shifted into the browser's zone. Countries arrive
+// as ISO codes ("NL") and are named here, so the UI carries no country table.
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 
@@ -29,4 +30,16 @@ export function longDate(t: string): string {
 /** Today in UTC, YYYY-MM-DD, shifted by `days`. */
 export function utcDay(days = 0): string {
   return new Date(Date.now() + days * 86_400_000).toISOString().slice(0, 10)
+}
+
+const regions = new Intl.DisplayNames(['en'], { type: 'region' })
+
+/** "🇳🇱 Netherlands" for "NL": the flag from regional indicators, then the name. */
+export function country(code: string): string {
+  const cc = code.toUpperCase()
+  if (!/^[A-Z]{2}$/.test(cc)) return code
+  const flag = String.fromCodePoint(...[...cc].map((c) => 0x1f1e6 + c.charCodeAt(0) - 65))
+  let name: string | undefined
+  try { name = regions.of(cc) } catch { name = undefined }
+  return `${flag} ${name || cc}`
 }
