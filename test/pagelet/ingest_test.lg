@@ -123,6 +123,27 @@
     (ig/halt-key! ::ingest/buffer buffer)
     (duckdb/close! conn)))
 
+(deftest a-delete-never-races-a-flush
+  ;; Hold the write lock, start a flush and a delete, then let go: whichever
+  ;; runs first, the site ends with no events.
+  (let [conn (fresh-conn)
+        buffer (ig/init-key ::ingest/buffer {:conn conn :interval-ms 60000})
+        site {:id "site1" :domain "example.com"}]
+    (dotimes [_ 3] (ingest/enqueue! buffer (row "1.1.1.1" chrome)))
+    (async/<!! (:write-lock buffer))
+    (let [flushed (future (ingest/flush! buffer))
+          _ (async/<!! (async/timeout 50))
+          deleted (future (ingest/delete-site! buffer site))]
+      (async/<!! (async/timeout 50))
+      (async/>!! (:write-lock buffer) :token)
+      @flushed
+      @deleted)
+    (is (= 0 (:n (db/execute-one! conn ["select count(*) as n from events"]))))
+    (is (= 0 (:n (db/execute-one! conn ["select count(*) as n from sites"]))))
+    (is (= {} (ingest/sites buffer)))
+    (ig/halt-key! ::ingest/buffer buffer)
+    (duckdb/close! conn)))
+
 (deftest the-final-flush-runs-on-halt
   (let [conn (fresh-conn)
         buffer (ig/init-key ::ingest/buffer {:conn conn :interval-ms 60000})]

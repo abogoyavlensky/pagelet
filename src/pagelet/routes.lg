@@ -257,15 +257,14 @@
 
      ;; The cache forgets the site first, so the flusher drops whatever is
      ;; still queued for it; then its events and the site go in one
-     ;; transaction.
+     ;; transaction. ingest/delete-site! does both under the flusher's
+     ;; write lock.
      {:path "/api/sites/:id"
       :method :delete
       :response (protected
                  (with-site
                   (fn [_ site]
-                    (ingest/remove-site! buffer (:domain site))
-                    (db/delete-site! db (:id site))
-                    (ingest/refresh-sites! buffer)
+                    (ingest/delete-site! buffer site)
                     (json-response 200 {:ok true}))))}
 
      {:path "/api/sites/:id/stats"

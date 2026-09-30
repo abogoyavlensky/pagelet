@@ -125,6 +125,30 @@
   [buffer]
   @(:sites buffer))
 
+;; The write lock: a channel holding one token. A flush holds it from
+;; taking the buffer to its last insert, and deleting a site holds it from
+;; forgetting the site to committing the delete, so a flush that already
+;; decided which sites are live can never insert after a delete. let-go
+;; has no monitor locks (monitor-enter is a no-op); a blocking take on a
+;; one-slot channel is the mutex.
+(defn- locked [{:keys [write-lock]} f]
+  (async/<!! write-lock)
+  (try
+    (f)
+    (finally
+      (async/>!! write-lock :token))))
+
+(defn delete-site!
+  "Delete `site` and its events. The cache forgets it first, so whatever is
+   still queued for it is dropped; both happen under the write lock, so no
+   flush in progress can write for it afterwards."
+  [buffer site]
+  (locked buffer
+          (fn []
+            (remove-site! buffer (:domain site))
+            (db/delete-site! (:conn buffer) (:id site))))
+  (refresh-sites! buffer))
+
 (defn enqueue!
   "Queue a parsed row. Kicks the flusher when the buffer is full."
   [buffer row]
@@ -194,19 +218,21 @@
    rows written."
   [{:keys [conn events] :as buffer}]
   (let [{:keys [now day]} (clock conn)
-        salt (:salt (salt-for! buffer day))
-        [rows _] (swap-vals! events (fn [_] []))
-        live (set (map :id (vals (sites buffer))))
-        rows (hash-rows salt (filter #(contains? live (:site-id %)) rows))]
-    (reduce (fn [written batch]
-              (try
-                (insert-batch! conn now batch)
-                (+ written (count batch))
-                (catch Exception e
-                  (println (str "pagelet: dropped " (count batch) " events: " (ex-message e)))
-                  written)))
-            0
-            (partition-all batch-size rows))))
+        salt (:salt (salt-for! buffer day))]
+    (locked buffer
+            (fn []
+              (let [[rows _] (swap-vals! events (fn [_] []))
+                    live (set (map :id (vals (sites buffer))))
+                    rows (hash-rows salt (filter #(contains? live (:site-id %)) rows))]
+                (reduce (fn [written batch]
+                          (try
+                            (insert-batch! conn now batch)
+                            (+ written (count batch))
+                            (catch Exception e
+                              (println (str "pagelet: dropped " (count batch) " events: " (ex-message e)))
+                              written)))
+                        0
+                        (partition-all batch-size rows)))))))
 
 (defn tick!
   "One flush-loop step. Never throws: a failure is printed, and one that
@@ -242,7 +268,8 @@
                 :salt (atom nil)
                 :kick (async/chan 1)
                 :stop (async/chan)
-                :done (async/chan 1)}]
+                :done (async/chan 1)
+                :write-lock (doto (async/chan 1) (async/>!! :token))}]
     ;; Before the first request: a restarted server knows its sites and
     ;; has a salt. A database that cannot answer this fails ig/init.
     (refresh-sites! buffer)
