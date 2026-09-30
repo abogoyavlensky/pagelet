@@ -17,12 +17,13 @@
 ;; dynamic vars and never touches the database (let-go 1.13.0 runs every
 ;; handler on one shared binding stack).
 ;;
-;; A flush loop owns every write to `events`. Each tick it ensures today's
-;; salt, takes the whole buffer, hashes each row's IP and user agent into
-;; the visitor id and drops them, and inserts in multi-row batches. The IP
-;; and user agent live in memory for at most one interval and are never
-;; written. Hashing at flush time, right after the salt is ensured, keeps a
-;; row's hash and its ts on the same UTC day.
+;; A flush loop owns every write to `events`. Each tick it reads the UTC
+;; clock once, ensures that day's salt, takes the whole buffer, hashes each
+;; row's IP and user agent into the visitor id and drops them, and inserts
+;; in multi-row batches stamped with that one clock reading. The IP and
+;; user agent live in memory for at most one interval and are never
+;; written. The salt and the ts come from the same reading, so a row's hash
+;; and its ts are always on the same UTC day.
 
 (def ^:private max-body-bytes 4096)
 (def ^:private max-props-chars 2048)
@@ -33,7 +34,7 @@
 (def ^:private max-buffered 100000)
 
 (def ^:private insert-row-sql
-  "(?, now() at time zone 'UTC', ?, ?, ?, ?, ?, ?, ?, ?)")
+  "(?, ?::timestamp, ?, ?, ?, ?, ?, ?, ?, ?)")
 
 ;; ---- parsing ------------------------------------------------------------
 
@@ -134,22 +135,33 @@
       (async/offer! (:kick buffer) :kick))
     nil))
 
-(def ^:private today-salt-sql
-  "select day::varchar as day, salt from salts
-   where day = (now() at time zone 'UTC')::date")
+(defn- clock
+  "The UTC moment a flush stamps its rows with, and its day."
+  [conn]
+  (db/execute-one! conn ["select (now() at time zone 'UTC')::varchar as now,
+                                 (now() at time zone 'UTC')::date::varchar as day"]))
+
+(defn- salt-for!
+  "The salt for `day` (YYYY-MM-DD), from the salt atom when it holds that
+   day, else from the salts table, creating it (and deleting older days)
+   on the first call of a day."
+  [{:keys [conn salt]} day]
+  (let [cached @salt]
+    (if (= day (:day cached))
+      cached
+      (let [select-sql ["select day::varchar as day, salt from salts where day = ?::date" day]
+            row (or (db/execute-one! conn select-sql)
+                    (do
+                      (db/execute! conn ["insert into salts values (?::date, ?) on conflict do nothing"
+                                         day (id/random-hex)])
+                      (db/execute! conn ["delete from salts where day < ?::date" day])
+                      (db/execute-one! conn select-sql)))]
+        (reset! salt row)))))
 
 (defn ensure-salt!
-  "Make sure today's (UTC) salt exists, creating it and deleting older ones
-   on the first call of a day, and put it in the salt atom."
-  [{:keys [conn salt]}]
-  (let [row (or (db/execute-one! conn [today-salt-sql])
-                (do
-                  (db/execute! conn ["insert into salts values ((now() at time zone 'UTC')::date, ?)
-                                      on conflict do nothing"
-                                     (id/random-hex)])
-                  (db/execute! conn ["delete from salts where day < (now() at time zone 'UTC')::date"])
-                  (db/execute-one! conn [today-salt-sql])))]
-    (reset! salt row)))
+  "Make sure today's (UTC) salt exists and is in the salt atom."
+  [buffer]
+  (salt-for! buffer (:day (clock (:conn buffer)))))
 
 (defn hash-rows
   "Rows with the visitor hash in place of their IP and user agent."
@@ -160,27 +172,35 @@
              (dissoc :ip :ua)))
        rows))
 
-(defn- insert-batch! [conn rows]
+(defn- insert-batch! [conn ts rows]
   (db/execute! conn
                (into [(str "insert into events
                             (site_id, ts, name, visitor, path, referrer, browser, os, device, props)
                             values "
                            (str/join ", " (repeat (count rows) insert-row-sql)))]
-                     (mapcat (juxt :site-id :name :visitor :path :referrer
-                                   :browser :os :device :props)
+                     (mapcat (fn [row]
+                               [(:site-id row) ts (:name row) (:visitor row) (:path row)
+                                (:referrer row) (:browser row) (:os row) (:device row)
+                                (:props row)])
                              rows))))
 
 (defn flush!
-  "Write everything buffered, in batches, with the current salt. Rows for a
-   site no longer in the cache are dropped; a batch that fails is logged
-   and dropped. Returns the number of rows written."
-  [{:keys [conn events salt] :as buffer}]
-  (let [[rows _] (swap-vals! events (fn [_] []))
+  "Write everything buffered, in batches. One reading of the UTC clock
+   stamps every row and picks the salt, so a flush that straddles midnight
+   still hashes each row with the salt of the day its ts says. If the clock
+   or the salt cannot be read, this throws before taking the buffer and the
+   rows stay for the next flush. Rows for a site no longer in the cache are
+   dropped; a batch that fails is logged and dropped. Returns the number of
+   rows written."
+  [{:keys [conn events] :as buffer}]
+  (let [{:keys [now day]} (clock conn)
+        salt (:salt (salt-for! buffer day))
+        [rows _] (swap-vals! events (fn [_] []))
         live (set (map :id (vals (sites buffer))))
-        rows (hash-rows (:salt @salt) (filter #(contains? live (:site-id %)) rows))]
+        rows (hash-rows salt (filter #(contains? live (:site-id %)) rows))]
     (reduce (fn [written batch]
               (try
-                (insert-batch! conn batch)
+                (insert-batch! conn now batch)
                 (+ written (count batch))
                 (catch Exception e
                   (println (str "pagelet: dropped " (count batch) " events: " (ex-message e)))
@@ -189,11 +209,11 @@
             (partition-all batch-size rows))))
 
 (defn tick!
-  "One flush-loop step: ensure the salt, then flush. Never throws; if the
-   salt cannot be ensured the rows stay buffered for the next tick."
+  "One flush-loop step. Never throws: a failure is printed, and one that
+   happened before the buffer was taken (the clock, the salt) leaves the
+   rows for the next tick."
   [buffer]
   (try
-    (ensure-salt! buffer)
     (flush! buffer)
     (catch Exception e
       (println (str "pagelet: flush failed: " (ex-message e)))

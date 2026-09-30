@@ -7,6 +7,7 @@
             [pagelet.db :as db]
             [pagelet.ingest :as ingest]
             [pagelet.migrations :as migrations]
+            [pagelet.visitor]
             [string :as str]))
 
 ;; parse-event as a pure function, then the buffer component over an
@@ -94,7 +95,9 @@
         (is (every? #(re-matches #"[0-9a-f]{64}" %) visitors))
         (is (= 2 (count (set visitors))))
         (is (not-any? (fn [r] (some #{"9.9.9.9" "8.8.8.8" chrome} (vals r))) rows))
-        (is (every? #(re-matches #"\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}.*" (:tsv %)) rows)))
+        (is (every? #(re-matches #"\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}.*" (:tsv %)) rows))
+        ;; One flush, one clock reading.
+        (is (= 1 (count (set (map :tsv rows))))))
       (is (= 1 (:n (db/execute-one! conn ["select count(*) as n from salts
                                            where day = (now() at time zone 'UTC')::date"]))))
       (let [salt (:salt @(:salt buffer))]
@@ -104,6 +107,21 @@
       (finally
         (is (= :done (ig/halt-key! ::ingest/buffer buffer)))
         (duckdb/close! conn)))))
+
+(deftest the-salt-follows-the-flush-day
+  ;; A salt cached for another day is not used: flush! reads the day from
+  ;; the clock and fetches (or creates) that day's salt.
+  (let [conn (fresh-conn)
+        buffer (ig/init-key ::ingest/buffer {:conn conn :interval-ms 60000})
+        today @(:salt buffer)]
+    (reset! (:salt buffer) {:day "2000-01-01" :salt "stale"})
+    (ingest/enqueue! buffer (row "1.1.1.1" chrome))
+    (ingest/flush! buffer)
+    (is (= today @(:salt buffer)))
+    (is (= (:visitor (db/execute-one! conn ["select visitor from events"]))
+           (pagelet.visitor/visitor-hash (:salt today) "site1" "1.1.1.1" chrome)))
+    (ig/halt-key! ::ingest/buffer buffer)
+    (duckdb/close! conn)))
 
 (deftest the-final-flush-runs-on-halt
   (let [conn (fresh-conn)
@@ -118,11 +136,14 @@
         buffer (ig/init-key ::ingest/buffer {:conn conn :interval-ms 60000 :max-rows 2})]
     (ingest/enqueue! buffer (row "1.1.1.1" chrome))
     (ingest/enqueue! buffer (row "2.2.2.2" chrome))
-    (loop [i 0]
-      (when (and (< i 50) (seq @(:events buffer)))
-        (async/<!! (async/timeout 20))
-        (recur (inc i))))
-    (is (= 2 (:n (db/execute-one! conn ["select count(*) as n from events"]))))
+    ;; Wait for the rows to be committed, not for the buffer to empty: the
+    ;; flusher takes the buffer before it inserts.
+    (let [stored #(:n (db/execute-one! conn ["select count(*) as n from events"]))]
+      (loop [i 0]
+        (when (and (< i 100) (< (stored) 2))
+          (async/<!! (async/timeout 20))
+          (recur (inc i))))
+      (is (= 2 (stored))))
     (ig/halt-key! ::ingest/buffer buffer)
     (duckdb/close! conn)))
 
