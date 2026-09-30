@@ -1,0 +1,67 @@
+(ns pagelet.migrations
+  (:require [ragtime.letgo :as rt]))
+
+;; Schema history as ragtime migrations whose up and down steps are plain
+;; SQL strings. The letgo-packages ragtime package supplies the DataStore (a
+;; ragtime_migrations table) and the Migration record; this namespace holds
+;; only the app's own history. Append, never edit, once a migration shipped.
+;;
+;; Timestamps are naive UTC: every insert writes now() at time zone 'UTC'.
+
+(def migrations
+  [(rt/sql-migration
+    {:id "001-create-sites"
+     :up ["create table sites (
+             id varchar primary key,
+             name varchar not null,
+             domain varchar not null unique,
+             created_at timestamp not null)"]
+     :down ["drop table sites"]})
+
+   ;; One row per page view or custom event. visitor is the daily hash
+   ;; (ingest.lg); the IP and user agent are never stored.
+   (rt/sql-migration
+    {:id "002-create-events"
+     :up ["create table events (
+             site_id varchar not null,
+             ts timestamp not null,
+             name varchar not null,
+             visitor varchar not null,
+             path varchar not null,
+             referrer varchar,
+             browser varchar,
+             os varchar,
+             device varchar,
+             props json)"]
+     :down ["drop table events"]})
+
+   ;; Dashboard logins.
+   (rt/sql-migration
+    {:id "003-create-sessions"
+     :up ["create table sessions (
+             id varchar primary key,
+             created_at timestamp not null)"]
+     :down ["drop table sessions"]})
+
+   ;; The visitor hash salt, one row per UTC day.
+   (rt/sql-migration
+    {:id "004-create-salts"
+     :up ["create table salts (
+             day date primary key,
+             salt varchar not null)"]
+     :down ["drop table salts"]})])
+
+(defn- config [conn]
+  {:datastore (rt/sql-database conn)
+   :migrations migrations})
+
+(defn migrate!
+  "Apply every migration not yet applied, in order."
+  [conn]
+  (rt/migrate (config conn)))
+
+(defn rollback!
+  "Roll back the last migration, or the last `n`."
+  ([conn] (rollback! conn 1))
+  ([conn n]
+   (rt/rollback (config conn) n)))

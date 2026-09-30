@@ -1,5 +1,6 @@
 (ns pagelet.system
   (:require [integrant.core :as ig]
+            [pagelet.db]
             [pagelet.routes]
             [pagelet.server]
             [string :as str]))
@@ -24,7 +25,9 @@
 (defn config
   ([] (config os/getenv))
   ([lookup]
-   {:pagelet.routes/handler {}
+   {:pagelet.db/conn {:path (env lookup "DB_PATH" "pagelet.duckdb")}
+
+    :pagelet.routes/handler {}
 
     :pagelet.server/http {:addr (str ":" (env lookup "PORT" "8080"))
                           :handler (ig/ref :pagelet.routes/handler)}}))

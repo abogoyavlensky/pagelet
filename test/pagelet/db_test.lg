@@ -1,0 +1,28 @@
+(ns pagelet.db-test
+  (:require [clojure.test :refer [deftest is]]
+            [duckdb.core :as duckdb]
+            [pagelet.db :as db]
+            [pagelet.migrations :as migrations]))
+
+;; The schema over a throwaway DuckDB file: migrate, migrate again, roll
+;; everything back.
+
+(defn- tables [conn]
+  (set (map :table_name (db/query conn ["select table_name from information_schema.tables
+                                         where table_schema = 'main'"]))))
+
+(deftest migrate-and-roll-back
+  (mkdir ".tmp")
+  (let [path (str ".tmp/db-test-" (rand-int 100000000) ".duckdb")
+        conn (duckdb/open path)]
+    (try
+      (migrations/migrate! conn)
+      (is (= #{"sites" "events" "sessions" "salts" "ragtime_migrations"} (tables conn)))
+      (migrations/migrate! conn)
+      (is (= 4 (:n (db/execute-one! conn ["select count(*) as n from ragtime_migrations"]))))
+      (migrations/rollback! conn 4)
+      (is (= #{"ragtime_migrations"} (tables conn)))
+      (is (= 0 (:n (db/execute-one! conn ["select count(*) as n from ragtime_migrations"]))))
+      (finally
+        (duckdb/close! conn)
+        (os/sh "rm" "-f" path (str path ".wal"))))))

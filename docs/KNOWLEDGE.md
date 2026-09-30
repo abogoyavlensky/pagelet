@@ -46,3 +46,26 @@ What the library says for common agents:
   module cache); linking that directory to
   `~/.local/share/mise/installs/go/1.27.1` satisfies mise.
 - The first `lgx run` built the DuckDB runtime in about 50 s.
+
+## DuckDB through the duckdb package (2026-09-30)
+
+Checked on an in-memory database opened with `(duckdb/open "")`:
+
+| SQL | let-go value |
+|---|---|
+| `select '{"a":1}'::json` | `{:a 1.0}`: the build has the `json` extension, so `events.props` is `json` |
+| `select now() at time zone 'UTC'` | `"2026-09-30T18:31:42.739512"`, a naive timestamp string |
+| `select (now() at time zone 'UTC')::date` | `"2026-09-30"` |
+| `select current_setting('TimeZone')` | `"Etc/UTC"` on this machine; the `at time zone 'UTC'` form does not depend on it |
+| `generate_series(timestamp '2026-09-01', timestamp '2026-09-03', interval 1 day)` | three rows, `"2026-09-01T00:00:00"` ... |
+| `count(*)`, `sum(1)`, `count(distinct ...)` | ints |
+| `round(2.84, 1)` | **`"2.8"`, a string**: the literal is a DECIMAL. Round a double (`round(x::double / y, 1)`) to get a float |
+| `strftime(ts, '%Y-%m-%dT%H:00')` | `"2026-09-01T13:00"` |
+| `('2026-09-30'::date - 6)::varchar` | `"2026-09-24"` |
+| `select ?::timestamp` with `"2026-09-23T00:00:00"` | round-trips |
+
+A `json` column reads back decoded (numbers as floats); `p::varchar`
+gives the text.
+
+ragtime's bookkeeping table (`seq integer primary key, id text`) works on
+DuckDB unchanged: migrate, migrate again (no-op), roll back all four.
