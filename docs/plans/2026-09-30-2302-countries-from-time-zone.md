@@ -1,5 +1,7 @@
 # Countries from the Browser's Time Zone Implementation Plan
 
+**Status: completed 2026-09-30,** except the post-merge production check (Task 6, Step 4); see the summary at the end.
+
 > **For agentic workers:** Use executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** The dashboard shows a Countries panel (flag and name), with the country derived from the browser's time zone, never from the IP.
@@ -99,24 +101,24 @@ On the dev box this gives 418 + 124 = 542 entries. The script takes the two inpu
 - Create: `src/pagelet/timezones.lg` (generated)
 - Test: `test/pagelet/timezones_test.lg`
 
-- [ ] **Step 1: Branch**
+- [x] **Step 1: Branch**
   `git checkout -b countries-from-time-zone`
 
-- [ ] **Step 2: Write the generator**
+- [x] **Step 2: Write the generator**
   A POSIX shell script with awk, executable, following the five rules under "The zone table". Arguments: `[zone.tab path] [tzdata.zi path]`, defaulting to the `/usr/share/zoneinfo/` files; exit non-zero with a message if either is missing. It writes the let-go file to stdout. The header comment names the script and the tz version and says not to edit by hand.
 
-- [ ] **Step 3: Generate**
+- [x] **Step 3: Generate**
   Run: `scripts/gen-timezones.sh > src/pagelet/timezones.lg`
   Expected on the dev box: 542 entries (`grep -c '/\|" "' src/pagelet/timezones.lg` is a rough check; Step 4's test counts them exactly); the file contains `"Europe/Amsterdam" "NL"`, `"Asia/Calcutta" "IN"`, `"Europe/Kiev" "UA"`, `"US/Pacific" "US"`, and no entry for `"UTC"`, `"EST"` or `"CET"`.
 
-- [ ] **Step 4: Write the test**
+- [x] **Step 4: Write the test**
   `test/pagelet/timezones_test.lg`: the four lookups above return their countries; `UTC`, `Etc/UTC`, `EST` and `CET` return nil; the map has 542 entries (update the number when the table is regenerated from newer tz data); every value matches `[A-Z]{2}`.
 
-- [ ] **Step 5: Run the tests**
+- [x] **Step 5: Run the tests**
   Run: `mise exec -- lgx test`
   Expected: PASS. This also proves let-go compiles a 542-entry map literal. If it does not, have the generator emit `(into {} [["zone" "CC"] ...])` instead and regenerate; the def's name and shape stay the same.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
   `git commit -m "Zone to country table, generated from tz data"`
 
 ### Task 2: Schema and ingest
@@ -126,29 +128,29 @@ On the dev box this gives 418 + 124 = 542 entries. The script takes the two inpu
 - Modify: `src/pagelet/ingest.lg`
 - Test: `test/pagelet/db_test.lg`, `test/pagelet/ingest_test.lg`, `test/pagelet/stats_test.lg`
 
-- [ ] **Step 1: Migration 005**
+- [x] **Step 1: Migration 005**
   Append `005-add-events-timezone-country` to `migrations`, with a comment saying the country is derived from the browser's time zone (ingest.lg) and both are null for older rows. Up: two statements, `alter table events add column timezone varchar` and `alter table events add column country varchar`, in that order. Down: drop `country`, then `timezone`. Do not edit migration 002.
 
-- [ ] **Step 2: Fix the tests the new columns break**
+- [x] **Step 2: Fix the tests the new columns break**
   - `db_test.lg`: the migration count becomes 5 and the rollback `5`.
   - `stats_test.lg`: both `insert into events values (...)` statements are positional and now need twelve values. Extend `insert!` to take `:timezone` and `:country` from its map (nil by default) and pass them as the last two values; add two `null`s to the "online now" insert.
 
-- [ ] **Step 3: `parse-event`**
+- [x] **Step 3: `parse-event`**
   Require `pagelet.timezones`. In the `:ok` row add `:timezone` and `:country` after `:device`, computed once from `(:z p)`: when it is a string with a table entry, the zone and its country; otherwise nil for both. Update the namespace comment and the `parse-event` docstring to say the country comes from the tracker's time zone, not the IP.
 
-- [ ] **Step 4: The insert**
+- [x] **Step 4: The insert**
   `insert-row-sql` gets two more `?` (twelve in all); `insert-batch!` names `timezone, country` after `device` in the column list and adds `(:timezone row) (:country row)` in the same position in the parameters. Keep `props` last in both; the statement names its columns, so their order need not match the table's.
 
-- [ ] **Step 5: Ingest tests**
+- [x] **Step 5: Ingest tests**
   - `a-pageview`: the expected map gains `:timezone nil :country nil` (no `z` sent).
   - New `the-time-zone-names-the-country`: `z` of `"Europe/Amsterdam"` gives `:timezone "Europe/Amsterdam" :country "NL"`; `"Asia/Calcutta"` gives `"IN"` with the zone kept as sent; `"UTC"`, `"Not/AZone"`, `42` and a payload without `z` each give nil for both.
   - `buffer-flushes-hashed-rows`: give one enqueued row `:timezone "Europe/Amsterdam" :country "NL"` and assert exactly one stored row has those values and the others have null for both.
 
-- [ ] **Step 6: Run the tests**
+- [x] **Step 6: Run the tests**
   Run: `mise exec -- lgx test`
   Expected: PASS.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
   `git commit -m "Store the time zone and its country on events"`
 
 ### Task 3: The countries report
@@ -157,18 +159,18 @@ On the dev box this gives 418 + 124 = 542 entries. The script takes the two inpu
 - Modify: `src/pagelet/stats.lg`
 - Test: `test/pagelet/stats_test.lg`, `test/pagelet/routes_test.lg`
 
-- [ ] **Step 1: The report**
+- [x] **Step 1: The report**
   Add `countries*` as `(ranked "country")` and a public `countries` beside `devices`; add `:countries` to the map `stats` returns, after `:referrers`. Update the file's header comment only if it lists the panels.
 
-- [ ] **Step 2: Tests**
+- [x] **Step 2: Tests**
   - `stats_test.lg`: in `seeded`, give visitor `a` `:country "NL"` (and `:timezone "Europe/Amsterdam"`) on every insert; give visitor `b` `:country "DE"` (`:timezone "Europe/Berlin"`) on the three 2026-09-09 inserts only, and no country on 2026-09-10. `seven-days` asserts `(:countries s)` is `[{:name "NL" :visitors 1 :pageviews 16} {:name "DE" :visitors 1 :pageviews 8}]` (a: 4 + 2 + 6 + 4; b on the 9th: 5 + 3, the signup is not a page view). That checks the ranking (a visitor tie broken by page views) and that b's null rows are not a row. `an-empty-period` asserts `[]`.
   - `routes_test.lg`, `events-to-stats`: send the event with `:z "Europe/Amsterdam"` and assert `[:json :countries]` is `[{:name "NL" :visitors 1 :pageviews 1}]`.
 
-- [ ] **Step 3: Run the tests**
+- [x] **Step 3: Run the tests**
   Run: `mise exec -- lgx test`
   Expected: PASS.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
   `git commit -m "Countries report"`
 
 ### Task 4: The tracker
@@ -177,17 +179,17 @@ On the dev box this gives 418 + 124 = 542 entries. The script takes the two inpu
 - Modify: `resources/public/p.js`
 - Test: `e2e/tests/tracker.spec.js`
 
-- [ ] **Step 1: Send the zone**
+- [x] **Step 1: Send the zone**
   Read the zone once near the other top-level vars, guarded so a browser without `Intl` or a throwing call leaves it undefined, with a one-line comment that the server derives the country from it. In `send`, put it on the payload as `z` (`JSON.stringify` drops an undefined value). Keep the file's terse style.
 
-- [ ] **Step 2: Browser test**
+- [x] **Step 2: Browser test**
   In `tracker.spec.js`, add `test.use({ timezoneId: 'Europe/Amsterdam' })` at the top of the file and, after the existing `s.events` assertion, assert `s.countries` equals `[{ name: 'NL', visitors: 1, pageviews: 4 }]`. Update the spec's header comment to mention the country.
 
-- [ ] **Step 3: Run the browser tests**
+- [x] **Step 3: Run the browser tests**
   Run: `mise exec -- lgx e2e`
   Expected: both specs pass (the dashboard spec is unchanged until Task 5).
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
   `git commit -m "Tracker sends the time zone"`
 
 ### Task 5: The Countries panel
@@ -196,10 +198,10 @@ On the dev box this gives 418 + 124 = 542 entries. The script takes the two inpu
 - Modify: `ui/src/api.ts`, `ui/src/format.ts`, `ui/src/pages/Site.tsx`
 - Test: `e2e/tests/dashboard.spec.js`
 
-- [ ] **Step 1: The type**
+- [x] **Step 1: The type**
   `Stats` in `ui/src/api.ts` gains `countries: Row[]` after `referrers`.
 
-- [ ] **Step 2: The label**
+- [x] **Step 2: The label**
   `ui/src/format.ts` gains `country(code: string): string`, returning flag, a space, and the English name, e.g. `🇳🇱 Netherlands`. The flag is each letter of the upper-cased code mapped to its regional indicator:
 
   ```ts
@@ -208,38 +210,61 @@ On the dev box this gives 418 + 124 = 542 entries. The script takes the two inpu
 
   The name comes from one module-level `new Intl.DisplayNames(['en'], { type: 'region' })`; if `.of(code)` throws or returns nothing, fall back to the code. A code that is not two letters A-Z returns the code alone. Extend the file's header comment to cover countries.
 
-- [ ] **Step 3: The panel**
+- [x] **Step 3: The panel**
   In `Report` in `ui/src/pages/Site.tsx`, add `<RankedList title="Countries" ...>` after Referrers, with items `rows(stats.countries)` whose `name` is passed through `country`. Renumber the `delay(n)` steps of the panels after it (Countries 6, Browsers 7, OS 8, Devices 9, Events 10). Update the `RankedList` doc comment's list of panels in `ui/src/components/RankedList.tsx` (comment only).
 
-- [ ] **Step 4: Browser test**
+- [x] **Step 4: Browser test**
   In `dashboard.spec.js`: the empty-state count becomes 7; add `z: 'Europe/Amsterdam'` to the three posted events; after the pages assertion, assert `page.getByTestId('panel-countries').locator('li')` has count 1 and contains the text `Netherlands`.
 
-- [ ] **Step 5: Lint and run**
+- [x] **Step 5: Lint and run**
   Run: `cd ui && npm run lint` — expected: no errors.
   Run: `mise exec -- lgx check` — expected: unit tests and both browser specs pass (`lgx e2e` runs `tsc -b` through the dashboard build).
 
-- [ ] **Step 6: Look at it**
+- [x] **Step 6: Look at it**
   Run `mise exec -- lgx run`, add a site for `localhost`, post two events with different zones (`curl -s -X POST localhost:8080/api/event -H 'Content-Type: text/plain' -H 'User-Agent: <a desktop Chrome string>' -d '{"d":"localhost","u":"http://localhost/","n":"pageview","z":"Asia/Tokyo"}'`), and check the panel in a browser: flags render, the bar and counts line up with the other panels, the seven-panel grid reads well at both widths.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
   `git commit -m "Countries panel"`
+
+> Deviation: Step 6 ran the built `bin/pagelet` on port 8111 with a scratch database and a `demo.test` site instead of `lgx run` with a `localhost` site, and took the screenshots with the e2e Playwright; same check, no clash with a dev server. The flag glyphs could not be seen: the dev box has no emoji font and `chromium-headless-shell` left an injected Noto Color Emoji blank. The DOM text holds the right flags.
 
 ### Task 6: Docs and PR
 
 **Files:**
 - Modify: `README.md`, `docs/KNOWLEDGE.md`
 
-- [ ] **Step 1: README**
+- [x] **Step 1: README**
   - Intro (line 4) and "Tracking a site" (line 71): "under 2 KB" becomes "about 2 KB". Check the real size with `wc -c resources/public/p.js` and keep the wording true.
   - Intro list and "The dashboard" section: add countries to the lists of panels.
   - "What is collected": add the browser's time zone and the country derived from it to the per-event list, and one sentence saying the country comes from the time zone, never from the IP address, so a browser that reports `UTC` has none.
   - "Limitations": "No bounce rate, time on page or geography" loses geography; add that countries are as accurate as the visitor's time zone setting and that there is no city or region view.
 
-- [ ] **Step 2: KNOWLEDGE.md**
+- [x] **Step 2: KNOWLEDGE.md**
   A short dated section "Countries from the time zone": the table's source and rules (`zone.tab` first, then aliases from `tzdata.zi`, the excluded abbreviations), the entry count and tz version, how to regenerate (`scripts/gen-timezones.sh > src/pagelet/timezones.lg`), that Playwright's `timezoneId` reaches `Intl` in the tracker, and that Chrome on Windows shows letters for flags. Record only what was verified while doing the work.
 
-- [ ] **Step 3: Commit, push, PR**
+- [x] **Step 3: Commit, push, PR**
   `git commit -m "docs: countries from the time zone"`, push the branch, open a PR against `master` with `gh pr create`, and link it to the thread.
 
-- [ ] **Step 4: After merge**
+- [x] **Step 4 (after merge)**
   The deploy workflow runs on the merge to `master`. Check `https://pagelet.absky.dev/api/health`, then load a tracked page and confirm a country appears in the dashboard. Migration 005 runs at startup on the production database; the stop-first update means the old container is gone before it runs.
+
+---
+
+## Summary
+
+Implemented as designed, one commit per task, each reviewed by codex with no findings:
+
+- `scripts/gen-timezones.sh` generates `src/pagelet/timezones.lg`: 542 zones from tzdata 2026c (418 from `zone.tab`, 124 legacy aliases), abbreviation-style links excluded.
+- Migration 005 adds `timezone` and `country` to `events`; `parse-event` fills both from the tracker's `z` only when the table knows the zone.
+- `stats.lg` returns `:countries`, top ten by visitors, nulls skipped.
+- `p.js` sends `z` on every event (2045 → 2204 bytes; the README now says "about 2 KB").
+- The dashboard's Countries panel sits after Referrers and shows `🇳🇱 Netherlands`, built in `ui/src/format.ts`.
+- README and KNOWLEDGE.md updated.
+
+Verification: `lgx check` passes (41 tests, 218 assertions; both browser specs). End to end, the built binary counted ten posted events: `UTC` was dropped, `US/Pacific` and `America/New_York` merged into US, and `Asia/Calcutta` became India. The panel renders at 1280 px and 420 px.
+
+Deviations: Task 5 Step 6 (see the note there). Flags were not checked by eye on this machine.
+
+Open: Task 6 Step 4, the production check after the merge.
+
+What the plan could have specified better: that this dev box cannot render emoji, so a visual check of flags needs a full browser or another machine.
