@@ -115,3 +115,17 @@ byte (`curl ... | cmp - resources/public/app/<font>`), and headless
 Chromium loaded "Fraunces Variable" and "IBM Plex Sans" 400/500 from it.
 So fonts ship as files under `/app/`, served as `font/woff2` / `font/woff`;
 no `assetsInlineLimit` change.
+
+## Docker image (2026-09-30)
+
+- `bin/pagelet` links glibc and libstdc++ dynamically (`ldd`: libstdc++.so.6,
+  libm, libgcc_s, libc), so the image is `debian:trixie-slim` plus
+  `libstdc++6`.
+- The glibc floor comes from the build host. Built on this dev box (Ubuntu
+  26.04, glibc 2.43) the binary needs `GLIBC_2.43` (`objdump -T`), newer
+  than trixie's 2.41, so a locally built binary will **not** start in the
+  image. CI builds on ubuntu-latest (glibc 2.39), which trixie satisfies.
+  Build the image from a CI binary, or build the binary on a host with a
+  glibc no newer than the base image's.
+- Not run here: the agent user has no access to the Docker socket, so
+  `lgx docker` (the smoke test) was not executed on this machine.
