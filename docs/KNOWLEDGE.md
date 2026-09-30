@@ -223,3 +223,21 @@ pagelet deploys to the `personal` cluster (linkboard's) with `uc` 0.20.0;
   the database, so every pool connection reads `122.0 MiB` back; a bad value
   is a DuckDB parser error. `DUCKDB_MEMORY_LIMIT` sets it when the
   connection opens (`db.lg`).
+
+### The first deploy (2026-09-30)
+
+- `deploy.yml` run 36779409408 on `f6e7730`: the deploy job took 1m17s
+  (warm runtime cache). uc built `pagelet/pagelet:2026-09-30-212609.f6e7730`,
+  pushed it to machine `personal-1`, and planned
+  `+ create service pagelet` / `run container pagelet on personal-1`, then
+  "Monitoring (5s)" and "Running". The HTTPS health check passed on its
+  first try: DNS already pointed at the server and Caddy had the
+  certificate by then.
+- Over HTTPS: a 100 KB `POST /api/event` gets 413 from Caddy (the 64 KB
+  `request_body` limit); an event for an unknown site gets 202 with
+  `Access-Control-Allow-Origin: *`; a wrong password 401. The dashboard
+  loads Fraunces and Plex from the binary.
+- Signed in with the real password, a throwaway site, and a page on its
+  made-up domain loading `https://pagelet.absky.dev/p.js`: a load plus a
+  `pushState` counted 2 pageviews from 1 visitor within the flush interval,
+  and online-now showed 1.
