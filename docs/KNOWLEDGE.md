@@ -176,6 +176,27 @@ no `assetsInlineLimit` change.
   layered utilities (`focus-visible:outline-none`); it lives in
   `@layer base`.
 
+## Countries from the time zone (2026-09-30)
+
+- `src/pagelet/timezones.lg` is generated: `scripts/gen-timezones.sh >
+  src/pagelet/timezones.lg`, from the machine's `/usr/share/zoneinfo`
+  (tzdata 2026c on the dev box: 542 entries). Every `zone.tab` row names one
+  country (418); `zone1970.tab` would not do, it merges neighbours
+  (`Europe/Berlin` for DE, DK, NO, SE). Links in `tzdata.zi` (`L target
+  name`) add the legacy names browsers report (`Asia/Calcutta`,
+  `Europe/Kiev`, `US/Pacific`; 124 of them). The abbreviation-style links
+  (`EST`, `CET`, `PST8PDT`, ...) are skipped: `EST` links to
+  `America/Panama`. `UTC`, `GMT` and `Etc/*` link outside `zone.tab` and
+  drop out. `timezones_test.lg` pins the count; update it on a regeneration.
+- let-go 1.13.0 compiles the 542-entry map literal without trouble.
+- Playwright's `timezoneId` reaches `Intl.DateTimeFormat()` in the tracker,
+  beacons included (`tracker.spec.js`).
+- Flags are regional-indicator pairs drawn by the system's emoji font.
+  This dev box has none (only DejaVu), and `chromium-headless-shell` did not
+  paint Noto Color Emoji even when injected as a web font (the glyphs took
+  space but were blank), so flags could not be checked by eye here; the DOM
+  text is right. Chrome and Edge on Windows show the two letters instead.
+
 ## Deploying on uncloud (2026-09-30)
 
 pagelet deploys to the `personal` cluster (linkboard's) with `uc` 0.20.0;

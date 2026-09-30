@@ -29,8 +29,21 @@
                              :r "https://news.ycombinator.com/" :n "pageview"})]
     (is (= {:site-id "site1" :name "pageview" :ip "1.2.3.4" :ua chrome :path "/pricing"
             :referrer "news.ycombinator.com" :browser "Chrome" :os "macOS" :device "desktop"
-            :props nil}
+            :timezone nil :country nil :props nil}
            ok))))
+
+(deftest the-time-zone-names-the-country
+  (let [place (fn [z] (select-keys (:ok (parse {:d "example.com" :u "https://example.com/" :z z}))
+                                   [:timezone :country]))
+        none {:timezone nil :country nil}]
+    (is (= {:timezone "Europe/Amsterdam" :country "NL"} (place "Europe/Amsterdam")))
+    ;; A legacy name is kept as sent.
+    (is (= {:timezone "Asia/Calcutta" :country "IN"} (place "Asia/Calcutta")))
+    (is (= none (place "UTC")))
+    (is (= none (place "Not/AZone")))
+    (is (= none (place 42)))
+    (is (= none (select-keys (:ok (parse {:d "example.com" :u "https://example.com/"}))
+                             [:timezone :country])))))
 
 (deftest www-hostname-finds-the-site
   (is (= "site1" (get-in (parse {:d "www.example.com" :u "https://www.example.com/"}) [:ok :site-id]))))
@@ -83,7 +96,7 @@
       ;; Init loaded the sites and the salt without being asked.
       (is (= #{"example.com"} (set (keys (ingest/sites buffer)))))
       (is (re-matches #"[0-9a-f]{32}" (:salt @(:salt buffer))))
-      (ingest/enqueue! buffer (row "9.9.9.9" chrome))
+      (ingest/enqueue! buffer (assoc (row "9.9.9.9" chrome) :timezone "Europe/Amsterdam" :country "NL"))
       (ingest/enqueue! buffer (row "9.9.9.9" chrome))
       (ingest/enqueue! buffer (row "8.8.8.8" chrome))
       (ingest/enqueue! buffer (row "7.7.7.7" chrome "deleted-site"))
@@ -94,6 +107,8 @@
         (is (= 3 (count rows)))
         (is (every? #(re-matches #"[0-9a-f]{64}" %) visitors))
         (is (= 2 (count (set visitors))))
+        (is (= [["Europe/Amsterdam" "NL"] [nil nil] [nil nil]]
+               (sort-by (comp nil? first) (map (juxt :timezone :country) rows))))
         (is (not-any? (fn [r] (some #{"9.9.9.9" "8.8.8.8" chrome} (vals r))) rows))
         (is (every? #(re-matches #"\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}.*" (:tsv %)) rows))
         ;; One flush, one clock reading.

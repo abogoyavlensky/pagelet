@@ -49,7 +49,16 @@
      :up ["create table salts (
              day date primary key,
              salt varchar not null)"]
-     :down ["drop table salts"]})])
+     :down ["drop table salts"]})
+
+   ;; The browser's time zone and the country it names (ingest.lg), both
+   ;; null when the tracker sent none the table knows, and for older rows.
+   (rt/sql-migration
+    {:id "005-add-events-timezone-country"
+     :up ["alter table events add column timezone varchar"
+          "alter table events add column country varchar"]
+     :down ["alter table events drop column country"
+            "alter table events drop column timezone"]})])
 
 (defn- config [conn]
   {:datastore (rt/sql-database conn)

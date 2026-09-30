@@ -8,11 +8,14 @@
   var hash = has("hash"), first = true, last;
   // file: pages have no host; localhost only with data-dev.
   var off = l.protocol == "file:" || !has("dev") && /^(localhost|127\.0\.0\.1)$/.test(l.hostname);
+  // The time zone; the server names the country from it.
+  var zone;
+  try { zone = Intl.DateTimeFormat().resolvedOptions().timeZone; } catch (_) {}
 
   function send(n, p) {
     if (off) return;
     // The referrer goes with the first page view of a load only.
-    var v = n == "pageview", e = { d: l.hostname, u: l.href, n: n };
+    var v = n == "pageview", e = { d: l.hostname, u: l.href, n: n, z: zone };
     e.r = v && first ? d.referrer : "";
     if (v) first = false;
     if (p) e.p = p;

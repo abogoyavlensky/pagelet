@@ -1,8 +1,11 @@
 // The tracker on a single-page app: page views on load, on pushState and on
-// the back button, and a custom event, all counted once flushed.
+// the back button, and a custom event, all counted once flushed, with the
+// country named by the browser's time zone.
 import { test, expect } from '@playwright/test';
 import { readFileSync } from 'node:fs';
 import { apiLogin, createSite, deleteSite, online, stats, uniqueDomain } from './helpers.js';
+
+test.use({ timezoneId: 'Europe/Amsterdam' });
 
 const spa = readFileSync(new URL('../fixtures/spa.html', import.meta.url), 'utf8');
 
@@ -34,6 +37,7 @@ test('page views and a custom event from a SPA', async ({ page, request }) => {
     { name: '/pricing', visitors: 1, pageviews: 1 },
   ]);
   expect(s.events).toEqual([{ name: 'signup', count: 1, visitors: 1 }]);
+  expect(s.countries).toEqual([{ name: 'NL', visitors: 1, pageviews: 4 }]);
   expect(await online(request, site.id)).toBe(1);
 
   await deleteSite(request, site.id);

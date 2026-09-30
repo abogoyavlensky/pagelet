@@ -1,0 +1,21 @@
+(ns pagelet.timezones-test
+  (:require [clojure.test :refer [deftest is]]
+            [pagelet.timezones :as tz]))
+
+;; The generated table: current and legacy names find their country; UTC
+;; and the abbreviation-style zones find none.
+
+(deftest zones-name-their-country
+  (is (= "NL" (get tz/zone->country "Europe/Amsterdam")))
+  (is (= "IN" (get tz/zone->country "Asia/Calcutta")))
+  (is (= "UA" (get tz/zone->country "Europe/Kiev")))
+  (is (= "US" (get tz/zone->country "US/Pacific"))))
+
+(deftest zones-without-a-country
+  (doseq [z ["UTC" "Etc/UTC" "EST" "CET"]]
+    (is (nil? (get tz/zone->country z)) z)))
+
+(deftest the-whole-table
+  ;; 542 from tzdata 2026c; update when the table is regenerated.
+  (is (= 542 (count tz/zone->country)))
+  (is (every? #(re-matches #"[A-Z]{2}" %) (vals tz/zone->country))))

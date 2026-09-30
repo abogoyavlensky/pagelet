@@ -28,13 +28,13 @@ test('sign in, add a site, see its numbers, delete it', async ({ page, request }
   const pageviews = page.getByRole('button', { name: /^Pageviews/ });
   await expect(visitors).toHaveText(/Visitors\s*0$/);
   await expect(pageviews).toHaveText(/Pageviews\s*0$/);
-  await expect(page.getByText('No data for this period')).toHaveCount(6);
+  await expect(page.getByText('No data for this period')).toHaveCount(7);
 
   // Three page views from one visitor, posted the way the tracker posts.
   for (const path of ['/', '/pricing', '/docs']) {
     const res = await request.post('/api/event', {
       headers: { 'Content-Type': 'text/plain' },
-      data: JSON.stringify({ d: domain, u: `https://${domain}${path}`, r: '', n: 'pageview' }),
+      data: JSON.stringify({ d: domain, u: `https://${domain}${path}`, r: '', n: 'pageview', z: 'Europe/Amsterdam' }),
     });
     expect(res.status()).toBe(202);
   }
@@ -46,6 +46,9 @@ test('sign in, add a site, see its numbers, delete it', async ({ page, request }
   }).toPass({ timeout: 10_000 });
   await expect(visitors).toHaveText(/Visitors\s*1$/);
   await expect(page.getByTestId('panel-pages').locator('li')).toHaveCount(3);
+  const countries = page.getByTestId('panel-countries').locator('li');
+  await expect(countries).toHaveCount(1);
+  await expect(countries).toContainText('Netherlands');
   // The widget asks on mount and then every 15 s; its first answer can come
   // from just before the flush, so allow one more poll.
   await expect(page.getByTestId('online-now')).toHaveText(/^1 online now$/, { timeout: 20_000 });
