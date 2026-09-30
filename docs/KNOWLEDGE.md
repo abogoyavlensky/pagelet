@@ -91,3 +91,17 @@ as `Bot`, so ingest drops its events (202, nothing stored). A page-level
 `userAgent` option does **not** help: `navigator.sendBeacon` requests go out
 from the browser process with the original agent. Launch the browser with
 `--user-agent=<a desktop Chrome string>` instead; that covers beacons too.
+
+## Browser tests (2026-09-30)
+
+- `@playwright/test` 1.56.0, on `chromium_headless_shell-1194` (the same
+  build quickmeet uses, already in `~/.cache/ms-playwright`).
+- `npx playwright install chromium-headless-shell` fails on this dev box:
+  "Playwright does not support chromium-headless-shell on ubuntu26.04-x64".
+  The cached browser still runs. CI (ubuntu-latest) installs normally.
+- The tracker spec serves the app from a made-up public host with
+  `page.route` and the tracker from `127.0.0.1:8099`. Chromium 141's local
+  network access checks block that ("the request client is not a secure
+  context and the resource is in more-private address space `loopback`"),
+  so the config launches with
+  `--disable-features=LocalNetworkAccessChecks,BlockInsecurePrivateNetworkRequests`.
