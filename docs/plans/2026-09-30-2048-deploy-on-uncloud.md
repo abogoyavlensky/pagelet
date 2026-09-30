@@ -100,7 +100,7 @@ pagelet/
 - Modify: `src/pagelet/db.lg`, `src/pagelet/system.lg`, `README.md` (Configuration table)
 - Test: `test/pagelet/db_test.lg`
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
   In `db_test.lg`, start `::db/conn` through `ig/init-key` on a temp file under `.tmp/`:
   - with `{:path p :memory-limit "128MB"}`, `(:m (db/execute-one! conn ["select current_setting('memory_limit') as m"]))` is `"122.0 MiB"`;
   - with `{:path p}` (no limit), init succeeds and the setting equals that of a plain `(duckdb/open "")` on the same host (DuckDB's default depends on the machine's RAM, so compare, don't hard-code);
@@ -109,7 +109,7 @@ pagelet/
   Halt and delete the files after each case.
   Run: `mise exec -- lgx test test/pagelet/db_test.lg`. Expected: the new tests FAIL (no limit is applied, bad values pass).
 
-- [ ] **Step 2: Implement**
+- [x] **Step 2: Implement**
   `db.lg`'s `::conn` init takes `{:keys [path memory-limit]}`. After `duckdb/open`, before `migrate!`, when `memory-limit` is not blank:
   - check it against `#"\d+(\.\d+)?\s*(B|KB|MB|GB|TB|KiB|MiB|GiB|TiB)"` with `re-matches`, throwing `ex-info` naming `DUCKDB_MEMORY_LIMIT` if it doesn't match;
   - run `(execute! conn [(str "SET memory_limit = '" memory-limit "'")])`. SET takes no `?` parameter.
@@ -118,11 +118,13 @@ pagelet/
   `system.lg`: `::db/conn {:path ... :memory-limit (env lookup "DUCKDB_MEMORY_LIMIT" nil)}`, and a line in the variable list at the top of the file.
   README Configuration table: a `DUCKDB_MEMORY_LIMIT` row, default "DuckDB's own (80% of RAM)", e.g. `128MB` in a container with a memory limit.
 
-- [ ] **Step 3: Run the tests**
+- [x] **Step 3: Run the tests**
   Run: `mise exec -- lgx test`. Expected: every suite PASS.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
   `git commit -am "DUCKDB_MEMORY_LIMIT caps DuckDB's memory"`
+
+> Deviation: `main.lg` now catches a failed `system/start!`, prints the exception and each `ex-cause` as `pagelet: <message>`, and exits 1. integrant's wrapper ("Error on key :pagelet.db/conn when building system") was all let-go printed, hiding reasons like a bad `DUCKDB_MEMORY_LIMIT` or a locked database file, which is what `uc logs` would show on a failed deploy. Also tested: an empty `DUCKDB_MEMORY_LIMIT` keeps the default.
 
 ### Task 2: uc in mise and the compose file
 

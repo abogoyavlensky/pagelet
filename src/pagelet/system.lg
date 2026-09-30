@@ -19,6 +19,7 @@
 ;;   ADMIN_PASSWORD     admin, with a warning at startup
 ;;   TRUST_PROXY        false; true reads the client IP from X-Forwarded-For
 ;;   FLUSH_INTERVAL_MS  5000
+;;   DUCKDB_MEMORY_LIMIT  DuckDB's own (80% of RAM); e.g. 128MB in a container
 
 (defn- env [lookup name default]
   (let [v (lookup name)]
@@ -40,7 +41,8 @@
 (defn config
   ([] (config os/getenv))
   ([lookup]
-   {:pagelet.db/conn {:path (env lookup "DB_PATH" "pagelet.duckdb")}
+   {:pagelet.db/conn {:path (env lookup "DB_PATH" "pagelet.duckdb")
+                      :memory-limit (env lookup "DUCKDB_MEMORY_LIMIT" nil)}
 
     :pagelet.ingest/buffer {:conn (ig/ref :pagelet.db/conn)
                             :interval-ms (env-int lookup "FLUSH_INTERVAL_MS" 5000)}

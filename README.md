@@ -111,6 +111,7 @@ Environment variables, each with a development default:
 | `ADMIN_PASSWORD` | `admin` (warns) | the dashboard password; only its SHA-256 is kept |
 | `TRUST_PROXY` | `false` | `true` behind a reverse proxy: the client IP is the first `X-Forwarded-For` entry |
 | `FLUSH_INTERVAL_MS` | `5000` | how often buffered events are written to DuckDB (sooner at 500 queued) |
+| `DUCKDB_MEMORY_LIMIT` | DuckDB's own (80% of RAM) | a cap such as `128MB`; set it in a container with a memory limit, which DuckDB would otherwise overrun |
 
 Events are buffered in memory and written in batches. On `SIGINT` or
 `SIGTERM` (Linux) the server stops taking requests, writes what is
