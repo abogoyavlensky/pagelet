@@ -1,5 +1,7 @@
 # Deploy on uncloud Implementation Plan
 
+**Status: completed 2026-09-30.** pagelet runs at `https://pagelet.absky.dev` on the `personal` cluster and deploys on every push to master; see the summary at the end.
+
 > **For agentic workers:** Use executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** pagelet runs at `https://pagelet.absky.dev` on the `personal` uncloud cluster (linkboard's), deployed by CI on every push to master, with its DuckDB file surviving deploys.
@@ -252,10 +254,10 @@ pagelet/
 
 **Needs from the user first** (stop and ask if any is missing): the DNS A record `pagelet.absky.dev` → the `personal` server's IP; repository variables `SERVER_IP` and `APP_DOMAIN`; secrets `SSH_PRIVATE_KEY` and `ADMIN_PASSWORD`. Check what the agent can: `dig +short pagelet.absky.dev` returns an address; the variables and secrets can only be confirmed by the user (`gh` gets 403).
 
-- [ ] **Step 1: Open the PR**
+- [x] **Step 1: Open the PR**
   Push the branch, open a PR, link it (link_pull_request), and wait for `test` to pass on it. The deploy runs only after the merge.
 
-- [ ] **Step 2: Merge and watch the deploy**
+- [x] **Step 2: Merge and watch the deploy**
   After the user merges, `gh run watch` the `deploy` run on master. Expected:
   - every step green;
   - the uc plan output says `run` (first deploy);
@@ -263,7 +265,7 @@ pagelet/
 
   On failure, read the step log first; `uc logs` needs the user's machine or the CI key.
 
-- [ ] **Step 3: Exercise it over HTTPS**
+- [x] **Step 3: Exercise it over HTTPS**
   Against `https://pagelet.absky.dev`, with the Playwright helpers from `.tmp/` (the desktop user-agent launch flag included):
   1. sign in with the admin password (the user provides it, or runs this step);
   2. add a throwaway site `verify-<time>.test`;
@@ -274,7 +276,7 @@ pagelet/
 
   Also: `curl -s -o /dev/null -w '%{http_code}' -H 'content-type: text/plain' --data-binary @<(head -c 100000 /dev/zero | tr '\0' a) https://pagelet.absky.dev/api/event` returns 413 (Caddy's body limit).
 
-- [ ] **Step 4: A second deploy keeps the data**
+- [x] **Step 4: A second deploy keeps the data**
   With a site present, deploy a **new commit**: the Task 6 Step 5 docs commit, through a PR. Rerunning the same workflow is not enough: uncloud tags the image from the git commit, so an unchanged commit may leave the container as it is and never exercise the replacement.
   While it deploys, poll from outside, e.g. `while true; do date +%T; curl -s -o /dev/null -w '%{http_code}\n' https://pagelet.absky.dev/api/health; sleep 1; done`, started before the merge. The workflow's own health check runs only after the deploy and cannot see the gap. Expected:
   - the uc plan line says `replace (stop-first)`;
@@ -283,6 +285,43 @@ pagelet/
 
   Record the downtime the poll saw.
 
-- [ ] **Step 5: Record and commit**
+- [x] **Step 5: Record and commit**
   Before Step 4: KNOWLEDGE.md, "Deploying on uncloud": the first-deploy facts (the plan lines, the 413, RSS if visible) with the date. `git commit -am "docs: first uncloud deploy verified"` through a PR, like every change to master. Merging it is Step 4's second deploy.
   After Step 4: add the downtime and the `replace (stop-first)` line to KNOWLEDGE.md, mark this plan completed with a short summary, and commit that through a PR too.
+
+> Deviation: Step 3 signed in with the real password (the user shared it for this check; it went only through an environment variable, never into a file or log) and kept the throwaway site until Step 4 had shown it survives the second deploy, then deleted it. PR #3 (the Step 5 notes) was the second deploy.
+
+---
+
+## Completion summary
+
+**Implemented.**
+- `DUCKDB_MEMORY_LIMIT`: validated, then applied with `SET memory_limit` when the connection opens; `128MB` in the container; with tests.
+- Startup failures print their causes.
+- `compose.yaml` for the `personal` cluster:
+  - explicit stop-first updates;
+  - the bind mount `/root/pagelet-data`;
+  - a Caddy block with a 64 KB body limit that fails the deploy when `APP_DOMAIN` is unset;
+  - `ADMIN_PASSWORD` as an uncloud secret;
+  - `TRUST_PROXY`;
+  - `mem_limit: 256m`.
+- `uc` 0.20.0 pinned in mise.
+- An offline compose check through uncloud's own loader.
+- `deploy.yml`: `test.yml` via `workflow_call`, then build, image smoke test, `uc deploy` and an HTTPS health check. Both workflows pin `ubuntu-24.04`.
+- README Deployment section, KNOWLEDGE "Deploying on uncloud", and a backlog entry for DuckDB backups.
+
+**Verified live.**
+- First deploy (PR #2, run 36779409408): created the service; health, the dashboard, `/p.js`, the 413 body limit and 401s all behave over HTTPS. A signed-in check counted a real tracked page load and a `pushState`.
+- Second deploy (PR #3, run 36782520653): `replace (stop-first)`, about a one-second switch that an outside poll saw only as one slow 200, and the data intact.
+
+**Issues met.** Codex hit its usage limit after Task 1, so Tasks 2-5 were reviewed by independent review subagents with the same brief. They found three real issues, all fixed: the unset `APP_DOMAIN` failure mode, the `TRUST_PROXY` caveat for the shared Caddy, and the floating `ubuntu-latest` runner. The agent cannot read the repo's Actions settings (403) or reach the server with `uc`, so the container's memory use on the server was not measured.
+
+**Deviations, in one place:**
+- Task 1: `main.lg` prints a failed start's cause chain; an empty `DUCKDB_MEMORY_LIMIT` keeps DuckDB's default.
+- Task 2: `${APP_DOMAIN:?...}` in the Caddy block; uc has no `--version` flag; per-task reviews by subagent from here on.
+- Task 3: the check ran as a scratch `go test` in the uncloud clone; KNOWLEDGE notes the shared-Caddy `trusted_proxies` caveat.
+- Task 4: the health check allows about two minutes.
+- Task 5: the runners are pinned to `ubuntu-24.04`.
+- Task 6: signed in with the shared password (environment only); PR #3 was the second deploy.
+
+**What the plan could have specified better:** the runner OS. The plan relied on "CI builds on ubuntu-latest (glibc 2.39)" without noticing that `ubuntu-latest` moves; any plan whose correctness rests on a build host's properties should pin that host.
