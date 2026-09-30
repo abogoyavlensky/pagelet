@@ -105,3 +105,13 @@ from the browser process with the original agent. Launch the browser with
   context and the resource is in more-private address space `loopback`"),
   so the config launches with
   `--disable-features=LocalNetworkAccessChecks,BlockInsecurePrivateNetworkRequests`.
+
+## Fonts through the binary (2026-09-30)
+
+quickmeet's note that `io/slurp` strings may not carry binaries turned out
+not to bite here: every font Vite emits (Fraunces and IBM Plex Sans, woff2
+and the woff fallbacks) came back from the built `bin/pagelet` byte for
+byte (`curl ... | cmp - resources/public/app/<font>`), and headless
+Chromium loaded "Fraunces Variable" and "IBM Plex Sans" 400/500 from it.
+So fonts ship as files under `/app/`, served as `font/woff2` / `font/woff`;
+no `assetsInlineLimit` change.

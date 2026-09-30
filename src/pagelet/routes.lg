@@ -43,12 +43,16 @@
    "css"   "text/css; charset=utf-8"
    "svg"   "image/svg+xml"
    "woff2" "font/woff2"
+   "woff"  "font/woff"
    "ico"   "image/x-icon"})
 
 (def ^:private cache-for-a-day "public, max-age=86400")
 
 (defn- static-response
   "Serve `name` from resources/public, or nil when there is no such file.
+   io/slurp reads a string, and fonts survive it byte for byte (checked
+   through the built binary, docs/KNOWLEDGE.md), so fonts are served as
+   files.
    io/resource returns nil for a missing name and for one that escapes the
    resource root, so `..` cannot reach outside it."
   [name cache-control]
