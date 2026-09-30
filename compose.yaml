@@ -17,7 +17,7 @@ services:
     # runs (docs/backlog/letgo-http-reads-whole-request-body.md), and nothing
     # pagelet accepts comes near 64 KB.
     x-caddy: |
-      ${APP_DOMAIN} {
+      ${APP_DOMAIN:?APP_DOMAIN must be set} {
         request_body {
           max_size 64KB
         }
