@@ -69,3 +69,16 @@ gives the text.
 
 ragtime's bookkeeping table (`seq integer primary key, id text`) works on
 DuckDB unchanged: migrate, migrate again (no-op), roll back all four.
+
+## Shutdown (2026-09-30)
+
+`syscall/signal-notify` (`pkg/rt/syscall_linux.go:599` in let-go 1.13.0)
+delivers signals as ints onto a let-go channel. `syscall/SIGINT` and
+`SIGTERM` exist on every platform (`syscall_other.go` defines them too), but
+`signal-notify` itself is an "unsupported" stub off Linux, so `main.lg` calls
+it in a `try` and falls back to `http/wait`. Checked with the built binary:
+post one event, `kill -TERM` at once, and the file holds that event, so
+`ig/halt!` ran the buffer's final flush before `os/exit 0`.
+
+let-go core has `sleep` (milliseconds) and `flush!`; defining either in a
+namespace prints a redefinition warning unless excluded.
