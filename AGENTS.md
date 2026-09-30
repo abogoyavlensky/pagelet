@@ -1,7 +1,20 @@
 # Agent notes
 
 Project knowledge lives in `docs/KNOWLEDGE.md` (the stack, verified facts,
-gotchas). Implementation plans live in `docs/plans/`.
+gotchas). Implementation plans live in `docs/plans/`. The README has the
+commands, the configuration and what is collected.
+
+## Working here
+
+- Run everything through mise (`mise exec -- lgx ...` outside an activated
+  shell): lgx, Go and Node come from `.mise.toml`; gcc from the system.
+- `lgx test` for the server, `lgx e2e` for the browser tests (it builds the
+  dashboard and the binary first), `lgx ui-dev` beside `lgx run` for UI work.
+- The request path must not bind dynamic vars and must not run SQL directly:
+  `db.lg`, `stats.lg` and `auth.lg` own the queries, `ingest.lg` owns every
+  write to `events`.
+- The dashboard's types in `ui/src/api.ts` mirror the JSON from `stats.lg`
+  and `routes.lg`; change both together.
 
 ## Backlog
 

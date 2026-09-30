@@ -13,6 +13,10 @@ claim goes stale, fix or delete it: a missing note beats a wrong one.
 | Go | 1.27 | builds the runtime; cgo, because the DuckDB driver is cgo |
 | letgo-packages `duckdb`, `ragtime` | duckdb-v0.2.0, ragtime-v0.2.0 | storage and migrations; both name `sql-v0.2.0` |
 | `github.com/mileusna/useragent` | v1.3.5 | user agent parsing, generated bindings (`:go/interop`) |
+| integrant, ruuter | 1.0.1, v2.1.1 | components, routing |
+| React, react-router, Recharts | 19, 7.18, 3 | the dashboard in `ui/` (Vite 8, TypeScript 6, Tailwind 4) |
+| Fraunces, IBM Plex Sans | fontsource 5.3 | the dashboard's fonts, shipped as files in the binary |
+| @playwright/test | 1.56.0 | browser tests in `e2e/`, on `chromium_headless_shell-1194` |
 
 ## The useragent bindings (2026-09-30)
 
@@ -129,3 +133,43 @@ no `assetsInlineLimit` change.
   glibc no newer than the base image's.
 - Not run here: the agent user has no access to the Docker socket, so
   `lgx docker` (the smoke test) was not executed on this machine.
+
+## let-go constraints the design works around
+
+- **Handlers share one dynamic-binding stack** (let-go 1.13.0; see
+  quickmeet's `docs/backlog/letgo-http-handlers-share-dynamic-bindings.md`):
+  nothing on the request path uses `binding`, and there is no HoneySQL;
+  queries are plain SQL strings with `?` parameters (`src/pagelet/db.lg`,
+  `stats.lg`).
+- **No response streaming**: online-now is polled every 15 s by the UI.
+- **`signal-notify` is Linux-only** (`pkg/rt/syscall_linux.go:599`;
+  `syscall_other.go` stubs it): `main.lg` falls back to `http/wait`.
+- **cgo cannot cross-compile**: `lgx build --target` forces
+  `CGO_ENABLED=0`; build natively.
+- **No monitor locks** (`monitor-enter` is a no-op): the ingest buffer's
+  write lock is a one-slot channel holding a token (`ingest.lg`, `locked`).
+- **Static files are read with `io/slurp`** into a string; fonts survive it
+  (above).
+
+## Gotchas met along the way (2026-09-30)
+
+- let-go's request `:uri` is `RequestURI()`, the path **with** the query
+  string, and ruuter splits `:uri` into segments, so
+  `/api/sites/x/stats?period=7d` would not match `/api/sites/:id/stats`.
+  The handler routes on the path and keeps the original as `:request-uri`
+  (`routes.lg`, `handler`).
+- let-go's http server reads the whole request body (`io.ReadAll`) before
+  the handler sees it; the 4 KB event limit is checked after. An upstream
+  limit (a reverse proxy's body size) is the real guard.
+- let-go core defines `flush!`, `sleep`, `send`, `open` and `close!`;
+  defining one in a namespace prints a redefinition warning unless it is in
+  `:refer-clojure :exclude`.
+- A var named `os` would shadow let-go's `os` namespace inside its file; the
+  stats fn is `operating-systems`.
+- The routes answer GET only, so `curl -I` (HEAD) gets 404; check headers
+  with `curl -s -D - -o /dev/null`.
+- Vite's `base: '/app/'` applies to the dev server too, where `/login` then
+  404s; `ui/vite.config.ts` sets it for builds only.
+- A global `:focus-visible` rule outside a CSS layer beats Tailwind's
+  layered utilities (`focus-visible:outline-none`); it lives in
+  `@layer base`.
