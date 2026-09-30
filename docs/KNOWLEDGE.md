@@ -193,7 +193,13 @@ pagelet deploys to the `personal` cluster (linkboard's) with `uc` 0.20.0;
 - **Caddy.** uncloud's Caddy publishes 80/443 in host mode
   (`pkg/client/caddy.go:66-79`) and its generated config has no
   `trusted_proxies`, so it replaces a client-sent `X-Forwarded-For` with the
-  connecting address: `TRUST_PROXY=true` is safe behind it. pagelet's
+  connecting address: `TRUST_PROXY=true` is safe behind it, **as long as
+  the cluster's `caddy` service has no global `x-caddy` block with
+  `servers { trusted_proxies ... }`** (it goes first in the Caddyfile,
+  `internal/machine/caddyconfig/caddyfile.go:156-181`, and would apply to
+  every service). The `personal` cluster is shared with linkboard: whoever
+  adds a CDN or trusted proxy there must check pagelet, or clients can spoof
+  its visitor IPs through `X-Forwarded-For`. pagelet's
   `x-caddy` block adds `request_body { max_size 64KB }`.
 - **Offline check.** `uc deploy` has no dry run. To check `compose.yaml`,
   put a scratch test in a clone of uncloud v0.20.0 under
