@@ -6,8 +6,8 @@
   // The endpoint sits beside this script: /p.js -> /api/event.
   var url = s.src.replace(/\/p\.js([?#].*)?$/, "/api/event");
   var hash = has("hash"), first = true, last;
-  // Local pages are not tracked unless data-dev is set.
-  var off = !has("dev") && (/^(localhost|127\.0\.0\.1)$/.test(l.hostname) || l.protocol == "file:");
+  // file: pages have no host; localhost only with data-dev.
+  var off = l.protocol == "file:" || !has("dev") && /^(localhost|127\.0\.0\.1)$/.test(l.hostname);
 
   function send(n, p) {
     if (off) return;

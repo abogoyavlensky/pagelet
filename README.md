@@ -32,7 +32,7 @@ Options, as attributes on the script tag:
 |---|---|
 | `data-hash` | Hash-routed apps: the fragment is part of the page (`/#/about`) and `hashchange` counts |
 | `data-manual` | No automatic page views; send them yourself with `pagelet("pageview")` |
-| `data-dev` | Track `localhost`, `127.0.0.1` and `file:` pages too (skipped otherwise) |
+| `data-dev` | Track `localhost` and `127.0.0.1` pages too (skipped otherwise; add `localhost` as a site). `file:` pages have no host and are never tracked |
 
 Custom events:
 
