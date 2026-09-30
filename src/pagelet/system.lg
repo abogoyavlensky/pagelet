@@ -1,5 +1,6 @@
 (ns pagelet.system
   (:require [integrant.core :as ig]
+            [pagelet.auth :as auth]
             [pagelet.db]
             [pagelet.ingest]
             [pagelet.routes]
@@ -12,6 +13,12 @@
 ;; Everything a deployment changes is an environment variable with a
 ;; development default. `config` takes the lookup function so tests can
 ;; pass a map instead of touching the process environment.
+;;
+;;   PORT               8080
+;;   DB_PATH            pagelet.duckdb
+;;   ADMIN_PASSWORD     admin, with a warning at startup
+;;   TRUST_PROXY        false; true reads the client IP from X-Forwarded-For
+;;   FLUSH_INTERVAL_MS  5000
 
 (defn- env [lookup name default]
   (let [v (lookup name)]
@@ -23,6 +30,13 @@
 (defn- env-bool [lookup name default]
   (= "true" (env lookup name (str default))))
 
+;; The dashboard password is kept only as its hash. Unset, it is "admin",
+;; and the handler prints a warning when it starts.
+(defn- password-config [lookup]
+  (let [password (env lookup "ADMIN_PASSWORD" nil)]
+    {:password-hash (auth/password-hash (or password "admin"))
+     :default-password? (nil? password)}))
+
 (defn config
   ([] (config os/getenv))
   ([lookup]
@@ -31,7 +45,10 @@
     :pagelet.ingest/buffer {:conn (ig/ref :pagelet.db/conn)
                             :interval-ms (env-int lookup "FLUSH_INTERVAL_MS" 5000)}
 
-    :pagelet.routes/handler {}
+    :pagelet.routes/handler {:db (ig/ref :pagelet.db/conn)
+                             :buffer (ig/ref :pagelet.ingest/buffer)
+                             :auth (password-config lookup)
+                             :trust-proxy? (env-bool lookup "TRUST_PROXY" false)}
 
     :pagelet.server/http {:addr (str ":" (env lookup "PORT" "8080"))
                           :handler (ig/ref :pagelet.routes/handler)}}))

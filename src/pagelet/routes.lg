@@ -1,30 +1,325 @@
 (ns pagelet.routes
   (:require [integrant.core :as ig]
             [json :as json]
-            [ruuter.core :as r]))
+            [pagelet.auth :as auth]
+            [pagelet.db :as db]
+            [pagelet.id :as id]
+            [pagelet.ingest :as ingest]
+            [pagelet.stats :as stats]
+            [ruuter.core :as r]
+            [string :as str]))
 
-;; The HTTP handler: a Ring-style function, and the integrant component
-;; that builds it. Tests call `handler` directly.
+;; The HTTP handler: a Ring-style function over the database, the ingest
+;; buffer and the auth settings, and the integrant component that builds
+;; it. Tests call `handler` directly over a throwaway database.
+;;
+;; Public: health, the tracker (/p.js and /api/event), login, and the
+;; dashboard's static files. Every other /api route takes a session cookie.
+;; No SQL here: db, stats and auth own the queries; this file turns their
+;; results into responses.
 
 (defn- json-response [status data]
   {:status status
    :headers {"Content-Type" "application/json"}
    :body (json/write-json data)})
 
-(defn- routes []
-  [{:path "/api/health"
-    :method :get
-    :response (fn [_] (json-response 200 {:ok true}))}
+(def ^:private unauthorized (json-response 401 {:error "unauthorized"}))
+(def ^:private not-found (json-response 404 {:error "not found"}))
 
-   {:path :not-found
-    :response (fn [_] (json-response 404 {:error "not found"}))}])
+(defn- bad-request [message] (json-response 400 {:error message}))
+
+(defn- read-json-body [req]
+  (let [body (:body req)]
+    (when-not (str/blank? (str body))
+      (try
+        (json/read-json body {:keywords? true})
+        (catch Exception _ nil)))))
+
+;; ---- static files -------------------------------------------------------
+
+(def ^:private content-types
+  {"html"  "text/html; charset=utf-8"
+   "js"    "text/javascript; charset=utf-8"
+   "css"   "text/css; charset=utf-8"
+   "svg"   "image/svg+xml"
+   "woff2" "font/woff2"
+   "ico"   "image/x-icon"})
+
+(def ^:private cache-for-a-day "public, max-age=86400")
+
+(defn- static-response
+  "Serve `name` from resources/public, or nil when there is no such file.
+   io/resource returns nil for a missing name and for one that escapes the
+   resource root, so `..` cannot reach outside it."
+  [name cache-control]
+  (let [ct (content-types (last (str/split (str name) #"\.")))
+        res (when ct (io/resource (str "public/" name)))]
+    (when res
+      {:status 200
+       :headers {"Content-Type" ct
+                 "Cache-Control" cache-control}
+       :body (io/slurp res)})))
+
+;; The dashboard is a single-page app: its routes all get index.html, which
+;; must not be cached (it names the hashed asset files of the current
+;; build). Before `lgx ui-build` there is no index.html; the API still works.
+(defn- app-index [_]
+  (or (static-response "app/index.html" "no-cache")
+      {:status 503
+       :headers {"Content-Type" "text/plain; charset=utf-8"}
+       :body "dashboard not built: run lgx ui-build"}))
+
+;; ---- sessions -----------------------------------------------------------
+
+(defn- session-id [req]
+  (get (auth/parse-cookies (get-in req [:headers "cookie"])) auth/cookie-name))
+
+(defn- secure?
+  "Whether the request came over TLS, which is where a Secure cookie
+   belongs. Only a proxy says so; direct http is development."
+  [req]
+  (= "https" (get-in req [:headers "x-forwarded-proto"])))
+
+(defn- with-cookie [response value]
+  (assoc-in response [:headers "Set-Cookie"] value))
+
+;; The dashboard's writes take JSON and nothing else. An html form cannot
+;; send application/json, and a cross-site fetch with it needs a preflight
+;; this server never answers.
+(defn- json-request? [req]
+  (str/starts-with? (str (get-in req [:headers "content-type"])) "application/json"))
+
+(defn- json-only [handle]
+  (fn [req]
+    (if (json-request? req)
+      (handle req)
+      (json-response 415 {:error "expected application/json"}))))
+
+;; ---- sites --------------------------------------------------------------
+
+(def ^:private domain-re
+  ;; Dot-separated labels of letters, digits and inner hyphens.
+  #"[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)*")
+
+(defn- site-input
+  "{:name :domain} from a request body, trimmed and the domain lower-cased,
+   or {:error message}."
+  [body]
+  (let [name (str/trim (str (:name body)))
+        domain (str/lower-case (str/trim (str (:domain body))))]
+    (cond
+      (not (<= 1 (count name) 64))
+      {:error "The name must be 1-64 characters."}
+
+      (not (and (<= 1 (count domain) 253) (re-matches domain-re domain)))
+      {:error "The domain must be a hostname like example.com, without a scheme, path or port."}
+
+      :else {:name name :domain domain})))
+
+(defn- new-site-id []
+  (subs (id/random-hex) 0 12))
+
+(def ^:private domain-taken (json-response 409 {:error "A site with that domain exists."}))
+
+(defn- domain-free?
+  "Whether `domain` is not used by a site other than `except-id`."
+  [conn domain except-id]
+  (let [site (db/site-by-domain conn domain)]
+    (or (nil? site) (= except-id (:id site)))))
+
+(defn- save-site!
+  "Run `write!` (an insert or update), answering 409 when the domain is
+   taken, including when a concurrent request took it first and the unique
+   index refused the write."
+  [conn domain except-id write! respond]
+  (if-not (domain-free? conn domain except-id)
+    domain-taken
+    (let [site (try
+                 (write!)
+                 (catch Exception e
+                   (if (domain-free? conn domain except-id) (throw e) ::taken)))]
+      (if (= ::taken site) domain-taken (respond site)))))
+
+;; ---- query strings ------------------------------------------------------
+
+(defn- split-uri
+  "[path query] of a request URI."
+  [uri]
+  (let [uri (str uri)
+        i (str/index-of uri "?")]
+    (if i [(subs uri 0 i) (subs uri (inc i))] [uri ""])))
+
+(defn- query-params
+  "The query string as a keyword map. Values are taken as written: the only
+   ones read here are period names and dates, which need no decoding."
+  [req]
+  (->> (str/split (second (split-uri (or (:request-uri req) (:uri req)))) #"&")
+       (keep (fn [part]
+               (when-not (str/blank? part)
+                 (let [i (str/index-of part "=")]
+                   (if i
+                     [(keyword (subs part 0 i)) (subs part (inc i))]
+                     [(keyword part) ""])))))
+       (into {})))
+
+;; ---- the table ----------------------------------------------------------
+
+(def ^:private cors {"Access-Control-Allow-Origin" "*"})
+
+(defn- routes [{:keys [db buffer auth trust-proxy?]}]
+  (let [signed-in? (fn [req] (auth/signed-in? db (session-id req)))
+        protected (fn [handle]
+                    (fn [req] (if (signed-in? req) (handle req) unauthorized)))
+        ;; (handle req site) for the site in the path, or 404.
+        with-site (fn [handle]
+                    (fn [req]
+                      (if-let [site (db/site-by-id db (-> req :params :id))]
+                        (handle req site)
+                        not-found)))]
+    [{:path "/api/health"
+      :method :get
+      :response (fn [_] (json-response 200 {:ok true}))}
+
+     ;; The tracker's endpoint. text/plain so browsers send no preflight;
+     ;; whatever the server drops on purpose is still 202, so the endpoint
+     ;; says nothing about which sites exist.
+     {:path "/api/event"
+      :method :post
+      :response (fn [req]
+                  (let [result (ingest/parse-event (:body req) (ingest/sites buffer) req trust-proxy?)]
+                    (when-let [row (:ok result)]
+                      (ingest/enqueue! buffer row))
+                    (if (:error result)
+                      {:status 400 :headers cors :body ""}
+                      {:status 202 :headers cors :body ""})))}
+
+     {:path "/api/event"
+      :method :options
+      :response (fn [_]
+                  {:status 204
+                   :headers (merge cors {"Access-Control-Allow-Methods" "POST"
+                                         "Access-Control-Allow-Headers" "Content-Type"})
+                   :body ""})}
+
+     ;; Body: {"password": "..."}.
+     {:path "/api/login"
+      :method :post
+      :response (json-only
+                 (fn [req]
+                   (if (auth/password-ok? auth (:password (read-json-body req)))
+                     (with-cookie (json-response 200 {:ok true})
+                       (auth/session-cookie (auth/sign-in! db) (secure? req)))
+                     (json-response 401 {:error "Wrong password"}))))}
+
+     {:path "/api/logout"
+      :method :post
+      :response (fn [req]
+                  (auth/sign-out! db (session-id req))
+                  (with-cookie (json-response 200 {:ok true}) (auth/clear-cookie)))}
+
+     {:path "/api/me"
+      :method :get
+      :response (protected (fn [_] (json-response 200 {:ok true})))}
+
+     {:path "/api/sites"
+      :method :get
+      :response (protected (fn [_] (json-response 200 (db/sites db))))}
+
+     ;; Body: {"name": "...", "domain": "..."}.
+     {:path "/api/sites"
+      :method :post
+      :response (protected
+                 (json-only
+                  (fn [req]
+                    (let [{:keys [error name domain]} (site-input (read-json-body req))]
+                      (if error
+                        (bad-request error)
+                        (save-site! db domain nil
+                                    #(db/create-site! db (new-site-id) name domain)
+                                    (fn [site]
+                                      (ingest/refresh-sites! buffer)
+                                      (json-response 201 site))))))))}
+
+     {:path "/api/sites/:id"
+      :method :put
+      :response (protected
+                 (json-only
+                  (with-site
+                    (fn [req site]
+                      (let [{:keys [error name domain]} (site-input (read-json-body req))]
+                        (if error
+                          (bad-request error)
+                          (save-site! db domain (:id site)
+                                      #(db/update-site! db (:id site) name domain)
+                                      (fn [updated]
+                                        (ingest/refresh-sites! buffer)
+                                        (json-response 200 updated)))))))))}
+
+     ;; The cache forgets the site first, so the flusher drops whatever is
+     ;; still queued for it; then its events and the site go in one
+     ;; transaction.
+     {:path "/api/sites/:id"
+      :method :delete
+      :response (protected
+                 (with-site
+                  (fn [_ site]
+                    (ingest/remove-site! buffer (:domain site))
+                    (db/delete-site! db (:id site))
+                    (ingest/refresh-sites! buffer)
+                    (json-response 200 {:ok true}))))}
+
+     {:path "/api/sites/:id/stats"
+      :method :get
+      :response (protected
+                 (with-site
+                  (fn [req site]
+                    (let [p (stats/period db (query-params req) (stats/today db))]
+                      (if (:error p)
+                        (bad-request (:error p))
+                        (json-response 200 (stats/stats db (:id site) p)))))))}
+
+     {:path "/api/sites/:id/realtime"
+      :method :get
+      :response (protected
+                 (with-site
+                  (fn [_ site]
+                    (json-response 200 (stats/realtime db (:id site))))))}
+
+     {:path "/p.js"
+      :method :get
+      :response (fn [_] (or (static-response "p.js" cache-for-a-day) not-found))}
+
+     {:path "/app/:file"
+      :method :get
+      :response (fn [req]
+                  (or (static-response (str "app/" (-> req :params :file)) cache-for-a-day)
+                      not-found))}
+
+     {:path "/" :method :get :response app-index}
+     {:path "/login" :method :get :response app-index}
+     {:path "/sites" :method :get :response app-index}
+     {:path "/sites/:id" :method :get :response app-index}
+
+     {:path :not-found
+      :response (fn [_] not-found)}]))
 
 (defn handler
-  "A Ring-style handler: request map in, response map out."
-  []
-  (let [table (routes)]
+  "A Ring-style handler: request map in, response map out. `deps` is
+   {:db conn :buffer ingest-buffer :auth {:password-hash ..}
+    :trust-proxy? bool}. Routing looks at the path only: ruuter would
+   otherwise read a query string as part of the last segment."
+  [deps]
+  (let [table (routes deps)]
     (fn [req]
-      (r/route table req))))
+      (try
+        (r/route table (assoc req :uri (first (split-uri (:uri req)))
+                              ;; the original, query string included
+                              :request-uri (:uri req)))
+        (catch Exception e
+          (println (str "pagelet: " (:request-method req) " " (:uri req) " failed: " e))
+          (json-response 500 {:error "internal error"}))))))
 
-(defmethod ig/init-key ::handler [_ _]
-  (handler))
+(defmethod ig/init-key ::handler [_ {:keys [auth] :as deps}]
+  (when (:default-password? auth)
+    (println "WARNING: ADMIN_PASSWORD is not set; the dashboard password is \"admin\"."))
+  (handler deps))

@@ -1,0 +1,73 @@
+(ns pagelet.auth
+  (:require [hash :as hash]
+            [pagelet.db :as db]
+            [pagelet.id :as id]
+            [string :as str]))
+
+;; One admin password and the sessions it opens. The password is kept only
+;; as its sha256, computed once from ADMIN_PASSWORD at config time; a login
+;; compares hashes. Sessions are random ids in the sessions table, carried
+;; in a cookie, and live for a year. Nothing here knows about http beyond
+;; the cookie strings; routes.lg turns the results into responses.
+
+(def cookie-name "session")
+
+;; The cookie's Max-Age and the SQL window in db/session-live? come from
+;; this one number.
+(def session-days 365)
+(def ^:private max-age-seconds (* session-days 24 60 60))
+
+(defn password-hash [password]
+  (hash/sha256 (str password)))
+
+(defn password-ok?
+  "Whether `password` is the admin password. `config` is the handler's
+   {:password-hash ...}."
+  [{:keys [password-hash]} password]
+  (and (string? password)
+       (= password-hash (hash/sha256 password))))
+
+(defn sign-in!
+  "A new session; its id."
+  [conn]
+  (let [session (id/random-hex)]
+    (db/create-session! conn session)
+    session))
+
+(defn signed-in?
+  "Whether `session-id` names a live session."
+  [conn session-id]
+  (and (not (str/blank? (str session-id)))
+       (db/session-live? conn session-id session-days)))
+
+(defn sign-out! [conn session-id]
+  (when-not (str/blank? (str session-id))
+    (db/delete-session! conn session-id))
+  nil)
+
+;; ---- cookies ------------------------------------------------------------
+
+(defn parse-cookies
+  "The Cookie header, `a=1; b=2`, as a map of name to value."
+  [header]
+  (->> (str/split (str header) ";")
+       (map str/trim)
+       (keep (fn [part]
+               (when-let [i (str/index-of part "=")]
+                 [(subs part 0 i) (subs part (inc i))])))
+       (into {})))
+
+(defn session-cookie
+  "The Set-Cookie value that carries `session-id`. HttpOnly keeps it from
+   scripts, SameSite=Lax keeps it off cross-site posts, and Secure is added
+   only when the request came over TLS: development is plain http on
+   localhost, where a Secure cookie would never be sent back."
+  [session-id secure?]
+  (str cookie-name "=" session-id
+       "; Path=/; HttpOnly; SameSite=Lax; Max-Age=" max-age-seconds
+       (when secure? "; Secure")))
+
+(defn clear-cookie
+  "The Set-Cookie value that removes the session cookie."
+  []
+  (str cookie-name "=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0"))
