@@ -51,8 +51,12 @@ test('sign in, add a site, see its numbers, delete it', async ({ page, request }
   await expect(page.getByTestId('online-now')).toHaveText(/^1 online now$/, { timeout: 20_000 });
 
   // A longer period holds the same events.
+  // Wait for the 30-day report itself: the page keeps the previous one on
+  // screen while it loads.
+  const thirty = page.waitForResponse((r) => r.url().includes('/stats?period=30d') && r.ok());
   await page.getByRole('button', { name: '30 days' }).click();
   await expect(page).toHaveURL(/period=30d/);
+  await thirty;
   await expect(visitors).toHaveText(/Visitors\s*1$/);
   await expect(pageviews).toHaveText(/Pageviews\s*3$/);
 
@@ -62,8 +66,12 @@ test('sign in, add a site, see its numbers, delete it', async ({ page, request }
   const remove = page.getByRole('button', { name: 'Delete site' });
   await expect(remove).toBeDisabled();
   await page.getByLabel('Type the domain to confirm').fill(domain);
+  // The list renders empty until /api/sites answers; assert on its answer.
+  const listed = page.waitForResponse((r) => r.url().endsWith('/api/sites') && r.request().method() === 'GET' && r.ok());
   await remove.click();
   await expect(page).toHaveURL(/\/sites$/);
+  const sites = await (await listed).json();
+  expect(sites.map((s) => s.domain)).not.toContain(domain);
   await expect(page.getByRole('heading', { name: 'Sites', exact: true })).toBeVisible();
   await expect(page.getByText(domain)).toHaveCount(0);
 });
