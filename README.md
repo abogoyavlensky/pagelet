@@ -1,11 +1,11 @@
 # pagelet
 
 Self-hosted, cookie-less web analytics from a single binary. A tiny
-tracker script (under 2 KB) sends page views and custom events to a
+tracker script (about 2 KB) sends page views and custom events to a
 [let-go](https://github.com/nooga/let-go) server that stores them in
 [DuckDB](https://duckdb.org) and serves a dashboard for several sites:
-visitors, pageviews, a timeseries, top pages, referrers, browsers, OS,
-devices, custom events, and who is online now. No cookies on tracked
+visitors, pageviews, a timeseries, top pages, referrers, countries,
+browsers, OS, devices, custom events, and who is online now. No cookies on tracked
 sites, one admin password for the dashboard. Built with
 [lgx](https://github.com/abogoyavlensky/lgx).
 
@@ -54,8 +54,8 @@ lgx ui-dev              # Vite on :5173, proxying /api and /p.js to :8080
 
 Screens: sign-in, the list of sites (with who is online), and a site's
 dashboard: headline numbers, a timeseries (hourly for one day, daily
-otherwise), and top-ten lists of pages, referrers, browsers, OS, devices
-and custom events, over today, the last 7 or 30 days, or a custom range.
+otherwise), and top-ten lists of pages, referrers, countries, browsers,
+OS, devices and custom events, over today, the last 7 or 30 days, or a custom range.
 The period is in the URL. Settings rename a site or delete it with its
 events.
 
@@ -68,7 +68,7 @@ counted with it), then put this in every page's `<head>`:
 <script defer src="https://analytics.example.com/p.js"></script>
 ```
 
-The script is under 2 KB, sets no cookies, and posts each page view to
+The script is about 2 KB, sets no cookies, and posts each page view to
 `/api/event` on the same host it was loaded from. Single-page apps are
 covered: `history.pushState`, `replaceState` and the back button count as
 page views when the path changes.
@@ -122,11 +122,16 @@ buffered, and exits; elsewhere (macOS) a kill loses up to one interval.
 Per event: the site, the time (UTC), the event name, the
 path (no query string; the fragment only with `data-hash`), the referrer's
 host (not when it is the site itself), the browser, OS and device class,
-custom event properties, and a visitor id. The visitor id is a SHA-256 of a
+the browser's time zone and the country it belongs to, custom event
+properties, and a visitor id. The visitor id is a SHA-256 of a
 random salt that changes every UTC day, the site, the IP address and the
 user agent, so the same person is one visitor within a day and cannot be
 followed across days or sites; the previous day's salt is deleted once a
 new one exists. The IP address and the user agent are never stored. Bots (by user agent) are not counted.
+
+The country comes from the time zone the browser reports
+(`Europe/Amsterdam` is the Netherlands), never from the IP address. A
+browser that reports `UTC`, or a zone that names no country, has none.
 
 Sessions for the dashboard use one cookie on the analytics host only
 (`HttpOnly`, `SameSite=Lax`, `Secure` behind TLS); tracked sites get none.
@@ -160,7 +165,9 @@ the browser tests and this smoke test on every push.
 
 - Reports are in UTC; there is no local-timezone view.
 - No data retention or rollups: events are kept until their site is deleted.
-- No bounce rate, time on page or geography.
+- No bounce rate or time on page.
+- Countries are only as accurate as the visitor's time zone setting; there
+  is no region or city view.
 - One admin password; no accounts.
 
 ## Deployment
