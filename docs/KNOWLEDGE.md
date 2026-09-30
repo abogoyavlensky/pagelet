@@ -241,3 +241,11 @@ pagelet deploys to the `personal` cluster (linkboard's) with `uc` 0.20.0;
   made-up domain loading `https://pagelet.absky.dev/p.js`: a load plus a
   `pushState` counted 2 pageviews from 1 visitor within the flush interval,
   and online-now showed 1.
+- The second deploy (run 36782520653, a docs-only commit) planned
+  `-/+ replace container pagelet/28e175fac682 on personal-1 (stop-first)`:
+  the old container stopped at 22:01:00.4-00.7 UTC, the new one started at
+  01.7, was monitored 5 s, then the old one was removed. An outside poll
+  of `/api/health` every ~0.66 s saw no failure in 698 samples; the one
+  request sent during the switch came back 200 about 1.1 s late. The
+  throwaway site and its 2 pageviews were still there afterwards, so the
+  bind-mounted DuckDB file survives a replacement.
