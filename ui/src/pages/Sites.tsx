@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router'
-import { api, useApi } from '../api'
+import { api, ApiError, useApi } from '../api'
 import SiteForm from '../components/SiteForm'
 import Snippet from '../components/Snippet'
 import { useSignedOutOn } from '../session'
@@ -49,7 +49,7 @@ export default function Sites() {
         </div>
       )}
 
-      {sites.error && !(sites.error as { status?: number }).status && (
+      {sites.error && !(sites.error instanceof ApiError && sites.error.status === 401) && (
         <p className="py-6 text-sm text-red-800">Could not load the sites.</p>
       )}
 

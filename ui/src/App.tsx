@@ -1,5 +1,6 @@
 import { BrowserRouter, Link, Navigate, Outlet, Route, Routes, useNavigate } from 'react-router'
-import { api } from './api'
+import { useState } from 'react'
+import { api, ApiError } from './api'
 import Wordmark from './components/Wordmark'
 import Login from './pages/Login'
 import Site from './pages/Site'
@@ -9,8 +10,19 @@ import { SessionProvider, useSession } from './session'
 function TopBar() {
   const { setState } = useSession()
   const navigate = useNavigate()
+  const [failed, setFailed] = useState(false)
+  // Signed out only once the server says so: a failed request leaves the
+  // session cookie valid, so pretending otherwise would sign back in on
+  // reload. A 401 means the session was already gone.
   const signOut = async () => {
-    await api.logout().catch(() => {})
+    try {
+      await api.logout()
+    } catch (err) {
+      if (!(err instanceof ApiError && err.status === 401)) {
+        setFailed(true)
+        return
+      }
+    }
     setState('out')
     navigate('/login')
   }
@@ -19,12 +31,12 @@ function TopBar() {
       <Link to="/sites" aria-label="pagelet, all sites">
         <Wordmark />
       </Link>
-      <button
-        onClick={signOut}
-        className="text-sm text-muted transition-colors hover:text-ink"
-      >
-        Sign out
-      </button>
+      <span className="flex items-baseline gap-3 text-sm">
+        {failed && <span role="alert" className="text-red-800">Could not sign out. Try again.</span>}
+        <button onClick={signOut} className="text-muted transition-colors hover:text-ink">
+          Sign out
+        </button>
+      </span>
     </header>
   )
 }
