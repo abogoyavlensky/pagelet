@@ -1,8 +1,12 @@
 name: test
 
+# Master pushes run these tests through deploy.yml, which deploys after
+# them.
 on:
   push:
+    branches-ignore: [master]
   pull_request:
+  workflow_call:
 
 concurrency:
   group: test-${{ github.ref }}

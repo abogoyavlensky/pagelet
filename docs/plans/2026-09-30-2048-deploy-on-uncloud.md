@@ -179,6 +179,7 @@ pagelet/
   `git commit -am "docs: uncloud update order and the offline compose check"`
 
 > Deviation: the check ran as a scratch `go test` in `/tmp/uncloud/pkg/client/compose/` (Go 1.27.1 from mise), printing the spec as JSON; it also confirmed an unset `APP_DOMAIN` now fails the load. The image-tag format it showed is recorded too.
+> Deviation (review): KNOWLEDGE.md states that `TRUST_PROXY=true` holds only while the shared cluster's `caddy` service sets no global `trusted_proxies`.
 
 ### Task 4: Deploy workflow
 
@@ -186,10 +187,10 @@ pagelet/
 - Modify: `.github/workflows/test.yml`
 - Create: `.github/workflows/deploy.yml`
 
-- [ ] **Step 1: Make `test.yml` callable**
+- [x] **Step 1: Make `test.yml` callable**
   `on:` becomes `push: {branches-ignore: [master]}`, `pull_request:`, `workflow_call:`, with a comment that master pushes run it through `deploy.yml`. Nothing else changes.
 
-- [ ] **Step 2: Write `deploy.yml`**
+- [x] **Step 2: Write `deploy.yml`**
   Modelled on quickmeet's `deploy.yml` (minus `CGO_ENABLED` and the `file ... statically linked` check) and linkboard's `deploy.yaml`:
   - `on: push: branches: [master]`;
   - `concurrency: {group: deploy-personal, cancel-in-progress: false}`;
@@ -209,10 +210,10 @@ pagelet/
 
   One comment per step on why, in the repo's style.
 
-- [ ] **Step 3: Lint**
+- [x] **Step 3: Lint**
   Run: `mise exec actionlint@1.7.12 -- actionlint`. Expected: no output.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
   `git commit -m "Deploy to uncloud on every push to master"` (add `deploy.yml` first).
 
 ### Task 5: Docs and backlog
