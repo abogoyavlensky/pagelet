@@ -30,3 +30,8 @@
   [conn]
   (query conn ["select id, name, domain, created_at::varchar as created_at
                 from sites order by name, domain"]))
+
+(defn sites-by-domain
+  "Every site keyed by its domain: the ingest's lookup table."
+  [conn]
+  (into {} (map (juxt :domain identity)) (sites conn)))

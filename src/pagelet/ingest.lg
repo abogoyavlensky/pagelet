@@ -1,0 +1,237 @@
+(ns pagelet.ingest
+  (:refer-clojure :exclude [flush!])
+  (:require [async :as async]
+            [integrant.core :as ig]
+            [json :as json]
+            [pagelet.db :as db]
+            [pagelet.id :as id]
+            [pagelet.ua :as ua]
+            [pagelet.visitor :as visitor]
+            [string :as str]))
+
+;; Ingest: turning a tracker POST into an event row, and getting rows into
+;; DuckDB in batches.
+;;
+;; The request path does the minimum: parse, look the site up, classify the
+;; user agent, and conj a row onto an in-memory buffer. It never binds
+;; dynamic vars and never touches the database (let-go 1.13.0 runs every
+;; handler on one shared binding stack).
+;;
+;; A flush loop owns every write to `events`. Each tick it ensures today's
+;; salt, takes the whole buffer, hashes each row's IP and user agent into
+;; the visitor id and drops them, and inserts in multi-row batches. The IP
+;; and user agent live in memory for at most one interval and are never
+;; written. Hashing at flush time, right after the salt is ensured, keeps a
+;; row's hash and its ts on the same UTC day.
+
+(def ^:private max-body-bytes 4096)
+(def ^:private max-props-chars 2048)
+(def ^:private batch-size 200)
+
+;; A buffer that cannot drain (the database is down) stops growing here;
+;; later events are dropped until a flush succeeds.
+(def ^:private max-buffered 100000)
+
+(def ^:private insert-row-sql
+  "(?, now() at time zone 'UTC', ?, ?, ?, ?, ?, ?, ?, ?)")
+
+;; ---- parsing ------------------------------------------------------------
+
+(defn- read-payload [body]
+  (try
+    (json/read-json body {:keywords? true})
+    (catch Exception _ nil)))
+
+(defn- present? [v]
+  (and (string? v) (not (str/blank? v))))
+
+(defn- event-name [n]
+  (cond
+    (nil? n) "pageview"
+    (and (string? n) (re-matches #"[a-zA-Z0-9_-]{1,64}" n)) n
+    :else nil))
+
+(defn- find-site
+  "The site a tracker's hostname belongs to: exact, or without www."
+  [sites-by-domain d]
+  (let [d (str/lower-case d)]
+    (or (get sites-by-domain d)
+        (when (str/starts-with? d "www.")
+          (get sites-by-domain (subs d 4))))))
+
+(defn- props-json
+  "`p` serialised, when it is a map that fits. Never truncated: a cut JSON
+   string is invalid and would fail its whole batch."
+  [p]
+  (when (map? p)
+    (let [s (json/write-json p)]
+      (when (<= (count s) max-props-chars) s))))
+
+(defn- path-with-hash
+  "The URL's path, plus the tracker's hash route in hash mode."
+  [u h]
+  (str (visitor/path-of u)
+       (when (and (present? h) (str/starts-with? h "#")) h)))
+
+(defn parse-event
+  "A tracker POST body as {:ok row}, {:drop reason} for an event that is
+   ignored on purpose (unknown site, bot), or {:error message} for a body
+   that is not an event. The row carries the IP and user agent for the
+   flusher to hash; nothing is hashed here."
+  [body sites-by-domain req trust-proxy?]
+  (let [body (str body)
+        p (when (<= (count (.getBytes body)) max-body-bytes) (read-payload body))
+        n (event-name (:n p))]
+    (cond
+      (> (count (.getBytes body)) max-body-bytes) {:error "body too large"}
+      (not (map? p)) {:error "invalid JSON"}
+      (not (and (present? (:d p)) (present? (:u p)))) {:error "missing d or u"}
+      (nil? n) {:error "invalid event name"}
+      :else
+      (if-let [site (find-site sites-by-domain (:d p))]
+        (let [ua-string (str (get-in req [:headers "user-agent"]))
+              {:keys [browser os device bot?]} (ua/classify ua-string)]
+          (if bot?
+            {:drop :bot}
+            {:ok {:site-id (:id site)
+                  :name n
+                  :ip (visitor/client-ip req trust-proxy?)
+                  :ua ua-string
+                  :path (path-with-hash (:u p) (:h p))
+                  :referrer (when (string? (:r p))
+                              (visitor/referrer-host (:r p) (:domain site)))
+                  :browser browser
+                  :os os
+                  :device device
+                  :props (props-json (:p p))}}))
+        {:drop :unknown-site}))))
+
+;; ---- the buffer ---------------------------------------------------------
+
+(defn refresh-sites!
+  "Reload the sites cache from the database."
+  [buffer]
+  (reset! (:sites buffer) (db/sites-by-domain (:conn buffer))))
+
+(defn remove-site!
+  "Drop one site from the cache, so the flusher discards whatever is still
+   queued for it."
+  [buffer domain]
+  (swap! (:sites buffer) dissoc domain))
+
+(defn sites
+  "The sites cache: domain -> site."
+  [buffer]
+  @(:sites buffer))
+
+(defn enqueue!
+  "Queue a parsed row. Kicks the flusher when the buffer is full."
+  [buffer row]
+  (let [n (count (swap! (:events buffer)
+                        (fn [rows]
+                          (if (< (count rows) max-buffered) (conj rows row) rows))))]
+    (when (>= n (:max-rows buffer))
+      (async/offer! (:kick buffer) :kick))
+    nil))
+
+(def ^:private today-salt-sql
+  "select day::varchar as day, salt from salts
+   where day = (now() at time zone 'UTC')::date")
+
+(defn ensure-salt!
+  "Make sure today's (UTC) salt exists, creating it and deleting older ones
+   on the first call of a day, and put it in the salt atom."
+  [{:keys [conn salt]}]
+  (let [row (or (db/execute-one! conn [today-salt-sql])
+                (do
+                  (db/execute! conn ["insert into salts values ((now() at time zone 'UTC')::date, ?)
+                                      on conflict do nothing"
+                                     (id/random-hex)])
+                  (db/execute! conn ["delete from salts where day < (now() at time zone 'UTC')::date"])
+                  (db/execute-one! conn [today-salt-sql])))]
+    (reset! salt row)))
+
+(defn hash-rows
+  "Rows with the visitor hash in place of their IP and user agent."
+  [salt rows]
+  (map (fn [row]
+         (-> row
+             (assoc :visitor (visitor/visitor-hash salt (:site-id row) (:ip row) (:ua row)))
+             (dissoc :ip :ua)))
+       rows))
+
+(defn- insert-batch! [conn rows]
+  (db/execute! conn
+               (into [(str "insert into events
+                            (site_id, ts, name, visitor, path, referrer, browser, os, device, props)
+                            values "
+                           (str/join ", " (repeat (count rows) insert-row-sql)))]
+                     (mapcat (juxt :site-id :name :visitor :path :referrer
+                                   :browser :os :device :props)
+                             rows))))
+
+(defn flush!
+  "Write everything buffered, in batches, with the current salt. Rows for a
+   site no longer in the cache are dropped; a batch that fails is logged
+   and dropped. Returns the number of rows written."
+  [{:keys [conn events salt] :as buffer}]
+  (let [[rows _] (swap-vals! events (fn [_] []))
+        live (set (map :id (vals (sites buffer))))
+        rows (hash-rows (:salt @salt) (filter #(contains? live (:site-id %)) rows))]
+    (reduce (fn [written batch]
+              (try
+                (insert-batch! conn batch)
+                (+ written (count batch))
+                (catch Exception e
+                  (println (str "pagelet: dropped " (count batch) " events: " (ex-message e)))
+                  written)))
+            0
+            (partition-all batch-size rows))))
+
+(defn tick!
+  "One flush-loop step: ensure the salt, then flush. Never throws; if the
+   salt cannot be ensured the rows stay buffered for the next tick."
+  [buffer]
+  (try
+    (ensure-salt! buffer)
+    (flush! buffer)
+    (catch Exception e
+      (println (str "pagelet: flush failed: " (ex-message e)))
+      nil)))
+
+(defn- start-loop!
+  "Tick every interval, or sooner when kicked; on stop, tick once more and
+   say so on `done`, whatever happens."
+  [{:keys [stop kick done interval-ms] :as buffer}]
+  (go
+    (try
+      (loop []
+        (let [[_ ch] (async/alts!! [stop kick (async/timeout interval-ms)])]
+          (tick! buffer)
+          (when-not (= ch stop)
+            (recur))))
+      (finally
+        (async/>!! done :done)))))
+
+(defmethod ig/init-key ::buffer [_ {:keys [conn interval-ms max-rows]}]
+  (let [buffer {:conn conn
+                :interval-ms (or interval-ms 5000)
+                :max-rows (or max-rows 500)
+                :events (atom [])
+                :sites (atom {})
+                :salt (atom nil)
+                :kick (async/chan 1)
+                :stop (async/chan)
+                :done (async/chan 1)}]
+    ;; Before the first request: a restarted server knows its sites and
+    ;; has a salt. A database that cannot answer this fails ig/init.
+    (refresh-sites! buffer)
+    (ensure-salt! buffer)
+    (start-loop! buffer)
+    buffer))
+
+;; Stop the loop and wait for its final flush. Bounded, so a wedged
+;; database cannot hang shutdown. Returns :done, or nil on timeout.
+(defmethod ig/halt-key! ::buffer [_ {:keys [stop done]}]
+  (async/close! stop)
+  (first (async/alts!! [done (async/timeout 30000)])))

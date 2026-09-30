@@ -1,6 +1,7 @@
 (ns pagelet.system
   (:require [integrant.core :as ig]
             [pagelet.db]
+            [pagelet.ingest]
             [pagelet.routes]
             [pagelet.server]
             [string :as str]))
@@ -26,6 +27,9 @@
   ([] (config os/getenv))
   ([lookup]
    {:pagelet.db/conn {:path (env lookup "DB_PATH" "pagelet.duckdb")}
+
+    :pagelet.ingest/buffer {:conn (ig/ref :pagelet.db/conn)
+                            :interval-ms (env-int lookup "FLUSH_INTERVAL_MS" 5000)}
 
     :pagelet.routes/handler {}
 

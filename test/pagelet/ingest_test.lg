@@ -1,0 +1,137 @@
+(ns pagelet.ingest-test
+  (:require [clojure.test :refer [deftest is]]
+            [duckdb.core :as duckdb]
+            [integrant.core :as ig]
+            [json :as json]
+            [async :as async]
+            [pagelet.db :as db]
+            [pagelet.ingest :as ingest]
+            [pagelet.migrations :as migrations]
+            [string :as str]))
+
+;; parse-event as a pure function, then the buffer component over an
+;; in-memory DuckDB: init, enqueue, flush, the salt, halt.
+
+(def ^:private chrome
+  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0 Safari/537.36")
+
+(def ^:private sites {"example.com" {:id "site1" :name "Example" :domain "example.com"}})
+
+(def ^:private req {:remote-addr "1.2.3.4:5678" :headers {"user-agent" chrome}})
+
+(defn- parse [payload & [request]]
+  (ingest/parse-event (if (string? payload) payload (json/write-json payload))
+                      sites (or request req) false))
+
+(deftest a-pageview
+  (let [{:keys [ok]} (parse {:d "Example.com" :u "https://example.com/pricing?x=1"
+                             :r "https://news.ycombinator.com/" :n "pageview"})]
+    (is (= {:site-id "site1" :name "pageview" :ip "1.2.3.4" :ua chrome :path "/pricing"
+            :referrer "news.ycombinator.com" :browser "Chrome" :os "macOS" :device "desktop"
+            :props nil}
+           ok))))
+
+(deftest www-hostname-finds-the-site
+  (is (= "site1" (get-in (parse {:d "www.example.com" :u "https://www.example.com/"}) [:ok :site-id]))))
+
+(deftest a-custom-event-with-props
+  (let [{:keys [ok]} (parse {:d "example.com" :u "https://example.com/" :r "" :n "signup"
+                             :p {:plan "pro"}})]
+    (is (= "signup" (:name ok)))
+    (is (nil? (:referrer ok)))
+    (is (= {:plan "pro"} (json/read-json (:props ok) {:keywords? true})))))
+
+(deftest oversized-props-are-dropped-not-cut
+  (let [{:keys [ok]} (parse {:d "example.com" :u "https://example.com/" :n "big"
+                             :p {:text (apply str (repeat 2100 "x"))}})]
+    (is (some? ok))
+    (is (nil? (:props ok)))))
+
+(deftest hash-mode-appends-the-route
+  (is (= "/#/about" (get-in (parse {:d "example.com" :u "https://example.com/#/about" :h "#/about"})
+                            [:ok :path]))))
+
+(deftest dropped-and-rejected
+  (is (= {:drop :unknown-site} (parse {:d "other.com" :u "https://other.com/"})))
+  (is (= {:drop :bot} (parse {:d "example.com" :u "https://example.com/"}
+                             {:remote-addr "1.2.3.4:1"
+                              :headers {"user-agent" "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)"}})))
+  (is (contains? (parse "not json") :error))
+  (is (contains? (parse "[1,2]") :error))
+  (is (contains? (parse {:d "example.com"}) :error))
+  (is (contains? (parse {:d "example.com" :u "https://example.com/" :n "bad name!"}) :error))
+  (is (contains? (parse {:d "example.com" :u "https://example.com/" :n (apply str (repeat 65 "a"))}) :error))
+  (is (contains? (parse (str "{\"d\":\"example.com\",\"u\":\"" (apply str (repeat 4100 "a")) "\"}")) :error)))
+
+;; ---- the buffer ---------------------------------------------------------
+
+(defn- fresh-conn []
+  (let [conn (duckdb/open "")]
+    (migrations/migrate! conn)
+    (db/execute! conn ["insert into sites values ('site1', 'Example', 'example.com', now() at time zone 'UTC')"])
+    conn))
+
+(defn- row [ip ua & [site-id]]
+  {:site-id (or site-id "site1") :name "pageview" :ip ip :ua ua :path "/" :referrer nil
+   :browser "Chrome" :os "macOS" :device "desktop" :props nil})
+
+(deftest buffer-flushes-hashed-rows
+  (let [conn (fresh-conn)
+        buffer (ig/init-key ::ingest/buffer {:conn conn :interval-ms 60000})]
+    (try
+      ;; Init loaded the sites and the salt without being asked.
+      (is (= #{"example.com"} (set (keys (ingest/sites buffer)))))
+      (is (re-matches #"[0-9a-f]{32}" (:salt @(:salt buffer))))
+      (ingest/enqueue! buffer (row "9.9.9.9" chrome))
+      (ingest/enqueue! buffer (row "9.9.9.9" chrome))
+      (ingest/enqueue! buffer (row "8.8.8.8" chrome))
+      (ingest/enqueue! buffer (row "7.7.7.7" chrome "deleted-site"))
+      (is (= 3 (ingest/flush! buffer)))
+      (is (= [] @(:events buffer)))
+      (let [rows (db/query conn ["select *, ts::varchar as tsv from events"])
+            visitors (map :visitor rows)]
+        (is (= 3 (count rows)))
+        (is (every? #(re-matches #"[0-9a-f]{64}" %) visitors))
+        (is (= 2 (count (set visitors))))
+        (is (not-any? (fn [r] (some #{"9.9.9.9" "8.8.8.8" chrome} (vals r))) rows))
+        (is (every? #(re-matches #"\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}.*" (:tsv %)) rows)))
+      (is (= 1 (:n (db/execute-one! conn ["select count(*) as n from salts
+                                           where day = (now() at time zone 'UTC')::date"]))))
+      (let [salt (:salt @(:salt buffer))]
+        (ingest/ensure-salt! buffer)
+        (ingest/ensure-salt! buffer)
+        (is (= salt (:salt @(:salt buffer)))))
+      (finally
+        (is (= :done (ig/halt-key! ::ingest/buffer buffer)))
+        (duckdb/close! conn)))))
+
+(deftest the-final-flush-runs-on-halt
+  (let [conn (fresh-conn)
+        buffer (ig/init-key ::ingest/buffer {:conn conn :interval-ms 60000})]
+    (ingest/enqueue! buffer (row "1.1.1.1" chrome))
+    (is (= :done (ig/halt-key! ::ingest/buffer buffer)))
+    (is (= 1 (:n (db/execute-one! conn ["select count(*) as n from events"]))))
+    (duckdb/close! conn)))
+
+(deftest a-full-buffer-kicks-the-flusher
+  (let [conn (fresh-conn)
+        buffer (ig/init-key ::ingest/buffer {:conn conn :interval-ms 60000 :max-rows 2})]
+    (ingest/enqueue! buffer (row "1.1.1.1" chrome))
+    (ingest/enqueue! buffer (row "2.2.2.2" chrome))
+    (loop [i 0]
+      (when (and (< i 50) (seq @(:events buffer)))
+        (async/<!! (async/timeout 20))
+        (recur (inc i))))
+    (is (= 2 (:n (db/execute-one! conn ["select count(*) as n from events"]))))
+    (ig/halt-key! ::ingest/buffer buffer)
+    (duckdb/close! conn)))
+
+(deftest a-salt-failure-keeps-the-rows
+  (let [conn (fresh-conn)
+        buffer (ig/init-key ::ingest/buffer {:conn conn :interval-ms 60000})]
+    (ingest/enqueue! buffer (row "1.1.1.1" chrome))
+    (duckdb/close! conn)
+    (let [out (with-out-str (is (nil? (ingest/tick! buffer))))]
+      (is (str/includes? out "flush failed")))
+    (is (= 1 (count @(:events buffer))))
+    (is (= :done (ig/halt-key! ::ingest/buffer buffer)))))
