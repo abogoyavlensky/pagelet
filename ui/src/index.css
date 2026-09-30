@@ -1,0 +1,31 @@
+@import "tailwindcss";
+@import "@fontsource-variable/fraunces/opsz.css";
+@import "@fontsource/ibm-plex-sans/latin-400.css";
+@import "@fontsource/ibm-plex-sans/latin-500.css";
+
+/* Graphite & Paper: light, editorial, calm. Tailwind exposes each token as
+   a utility (bg-paper, text-ink, border-hairline, text-accent, ...). */
+@theme {
+  --color-paper: #f6f4ee;
+  --color-card: #fbfaf7;
+  --color-ink: #1b1a17;
+  --color-muted: #6f6b63;
+  --color-hairline: #e4e0d6;
+  --color-accent: #0f766e;
+  --color-accent-soft: #0f766e1a;
+
+  --font-display: "Fraunces Variable", ui-serif, Georgia, serif;
+  --font-sans: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+}
+
+html {
+  background: var(--color-paper);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Every number lines up. */
+.num {
+  font-variant-numeric: tabular-nums;
+}

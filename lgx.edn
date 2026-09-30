@@ -46,11 +46,32 @@
         github.com/mileusna/useragent {:go/version "v1.3.5" :go/interop "useragent"}}
 
  :tasks
- {;; Browser tests: build the binary that ships, then let Playwright start
+ {;; The dashboard: a Vite app in ui/ whose build goes to
+  ;; resources/public/app, which lgx:build then embeds in the binary.
+  ui-install
+  {:doc "Install the dashboard's npm dependencies"
+   :do {:sh "cd ui && npm ci"}}
+
+  ui-dev
+  {:doc "Run the dashboard's Vite dev server (proxies /api to lgx run on :8080)"
+   :do {:sh "cd ui && npm run dev"}}
+
+  ui-build
+  {:doc "Build the dashboard into resources/public/app"
+   :do {:sh "cd ui && npm run build"}}
+
+  ;; `lgx build` builds the dashboard first, so the binary always carries
+  ;; the current one. `lgx lgx:build` is the bare binary build.
+  build
+  {:doc "Build the dashboard, then bin/pagelet"
+   :do [{:task ui-build}
+        {:task lgx:build}]}
+
+  ;; Browser tests: build the binary that ships, then let Playwright start
   ;; it on a test port with a throwaway database.
   e2e
   {:doc "Build the binary and run the browser tests against it"
-   :do [{:task lgx:build}
+   :do [{:task build}
         {:sh "cd e2e && npx playwright test"}]}
 
   e2e-setup
@@ -59,7 +80,7 @@
 
   docker
   {:doc "Build the binary, then the image, and smoke-test it"
-   :do [{:task lgx:build}
+   :do [{:task build}
         {:sh "scripts/docker-smoke.sh"}]}
 
   check
