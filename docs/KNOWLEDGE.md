@@ -102,7 +102,7 @@ from the browser process with the original agent. Launch the browser with
   build quickmeet uses, already in `~/.cache/ms-playwright`).
 - `npx playwright install chromium-headless-shell` fails on this dev box:
   "Playwright does not support chromium-headless-shell on ubuntu26.04-x64".
-  The cached browser still runs. CI (ubuntu-latest) installs normally.
+  The cached browser still runs. CI (ubuntu-24.04) installs normally.
 - The tracker spec serves the app from a made-up public host with
   `page.route` and the tracker from `127.0.0.1:8099`. Chromium 141's local
   network access checks block that ("the request client is not a secure
@@ -128,7 +128,9 @@ no `assetsInlineLimit` change.
 - The glibc floor comes from the build host. Built on this dev box (Ubuntu
   26.04, glibc 2.43) the binary needs `GLIBC_2.43` (`objdump -T`), newer
   than trixie's 2.41, so a locally built binary will **not** start in the
-  image. CI builds on ubuntu-latest (glibc 2.39), which trixie satisfies.
+  image. CI builds on ubuntu-24.04 (glibc 2.39), which trixie satisfies; the
+  workflows pin that runner, because `ubuntu-latest` will move to a newer
+  Ubuntu whose glibc trixie lacks.
   Build the image from a CI binary, or build the binary on a host with a
   glibc no newer than the base image's.
 - Not run here: the agent user has no access to the Docker socket, so
@@ -173,3 +175,51 @@ no `assetsInlineLimit` change.
 - A global `:focus-visible` rule outside a CSS layer beats Tailwind's
   layered utilities (`focus-visible:outline-none`); it lives in
   `@layer base`.
+
+## Deploying on uncloud (2026-09-30)
+
+pagelet deploys to the `personal` cluster (linkboard's) with `uc` 0.20.0;
+`compose.yaml` and `.github/workflows/deploy.yml` are the whole setup.
+
+- **Update order.** uncloud v0.20.0 picks the order per container in
+  `determineUpdateOrder` (`pkg/client/deploy/strategy.go:425`): an explicit
+  `deploy.update_config.order` wins; otherwise stop-first only for host-mode
+  port conflicts or for a single replica with Docker *volumes*
+  (`MountedDockerVolumes`, `pkg/api/service.go:108`, type `volume`), and
+  start-first for everything else, **bind mounts included**. DuckDB locks
+  its file to one process, so a start-first update would crash the new
+  container on the lock. `compose.yaml` sets `order: stop-first`
+  (`pkg/client/compose/service.go:110-119` maps it). linkboard runs
+  start-first on a bind mount only because SQLite's WAL tolerates two
+  processes.
+- **Caddy.** uncloud's Caddy publishes 80/443 in host mode
+  (`pkg/client/caddy.go:66-79`) and its generated config has no
+  `trusted_proxies`, so it replaces a client-sent `X-Forwarded-For` with the
+  connecting address: `TRUST_PROXY=true` is safe behind it, **as long as
+  the cluster's `caddy` service has no global `x-caddy` block with
+  `servers { trusted_proxies ... }`** (it goes first in the Caddyfile,
+  `internal/machine/caddyconfig/caddyfile.go:156-181`, and would apply to
+  every service). The `personal` cluster is shared with linkboard: whoever
+  adds a CDN or trusted proxy there must check pagelet, or clients can spoof
+  its visitor IPs through `X-Forwarded-For`. pagelet's
+  `x-caddy` block adds `request_body { max_size 64KB }`.
+- **Offline check.** `uc deploy` has no dry run. To check `compose.yaml`,
+  put a scratch test in a clone of uncloud v0.20.0 under
+  `pkg/client/compose/` that calls `LoadProject`, `ServiceSpecFromCompose`
+  and `spec.Validate()` with `APP_DOMAIN` and `ADMIN_PASSWORD` set, and
+  print the spec as JSON; run it with `go test ./pkg/client/compose/ -run
+  <Name> -v`. On 2026-09-30 it showed `UpdateConfig.Order: stop-first`, a
+  `bind` volume `/root/pagelet-data` with `CreateHostPath: true` mounted at
+  `/app/data`, `Memory` 256 MiB / `MemoryReservation` 128 MiB,
+  `StopGracePeriod` 10 s, the five env vars, and the Caddy block rendered
+  with the domain. With `APP_DOMAIN` unset, loading fails ("required variable
+  APP_DOMAIN is missing a value"), because the block uses
+  `${APP_DOMAIN:?...}`; a bare ` {` would make Caddy drop the block while
+  `uc deploy` still reports success.
+- **Image tags** are `<service>/<service>:<date>-<time>.<short commit>`
+  (e.g. `pagelet/pagelet:2026-09-30-211528.1a16bce`).
+- **DuckDB memory.** Unset, DuckDB's `memory_limit` is 80% of the RAM it
+  sees (9.1 GiB on the dev box). `SET memory_limit = '128MB'` is global to
+  the database, so every pool connection reads `122.0 MiB` back; a bad value
+  is a DuckDB parser error. `DUCKDB_MEMORY_LIMIT` sets it when the
+  connection opens (`db.lg`).

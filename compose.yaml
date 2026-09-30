@@ -1,0 +1,55 @@
+# pagelet on uncloud: `uc deploy` from .github/workflows/deploy.yml. The
+# image wraps the bin/pagelet CI built (see the Dockerfile); uncloud builds
+# it on the runner and ships it over SSH, and its Caddy terminates TLS.
+x-context: personal
+
+services:
+  pagelet:
+    build:
+      platforms:
+        - linux/amd64
+      cache_from:
+        - type=gha
+      cache_to:
+        - type=gha,mode=max
+    # A Caddy block of our own rather than an x-ports entry, for the body
+    # limit: let-go's server reads a whole request body before the handler
+    # runs (docs/backlog/letgo-http-reads-whole-request-body.md), and nothing
+    # pagelet accepts comes near 64 KB.
+    x-caddy: |
+      ${APP_DOMAIN:?APP_DOMAIN must be set} {
+        request_body {
+          max_size 64KB
+        }
+        reverse_proxy {{upstreams 8080}}
+      }
+    volumes:
+      - /root/pagelet-data:/app/data
+    # About 130 MB RSS after 20k events and a round of 30-day reports
+    # (measured 2026-09-30); DuckDB is capped below the limit by
+    # DUCKDB_MEMORY_LIMIT.
+    mem_limit: 256m
+    mem_reservation: 128m
+    # pagelet handles SIGTERM: it stops taking requests, flushes the event
+    # buffer and closes the database. Docker's default 10 s is plenty; kept
+    # explicit so nobody shortens it as quickmeet did for lg.
+    stop_grace_period: 10s
+    deploy:
+      update_config:
+        # DuckDB locks its file to one process, so the new container cannot
+        # start while the old one holds it. uncloud picks stop-first on its
+        # own only for port conflicts or Docker volumes, not for a bind
+        # mount (uncloud v0.20.0, pkg/client/deploy/strategy.go:425).
+        order: stop-first
+    environment:
+      PORT: "8080"
+      DB_PATH: /app/data/pagelet.duckdb
+      ADMIN_PASSWORD: secret://admin_password
+      # Caddy sets X-Forwarded-For to the connecting address and drops a
+      # client-sent one (no trusted_proxies in uncloud's config).
+      TRUST_PROXY: "true"
+      DUCKDB_MEMORY_LIMIT: 128MB
+
+secrets:
+  admin_password:
+    x-command: printenv ADMIN_PASSWORD

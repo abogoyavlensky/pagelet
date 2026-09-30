@@ -13,3 +13,8 @@ public endpoint only needs a few KB). Fix options: an upstream let-go change
 (`http.MaxBytesReader`, or a per-server limit option to `http/start`), or a
 Go shim server for pagelet. Found while writing the ingest route (v1 plan,
 Task 6).
+
+2026-09-30: the uncloud deployment caps bodies at 64 KB in Caddy
+(`request_body` in `compose.yaml`), which is that mitigation for
+production. The entry stays open: the server itself still reads without a
+limit, so `lgx run` or any other front end is exposed.

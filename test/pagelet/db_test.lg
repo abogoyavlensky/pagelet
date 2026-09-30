@@ -1,6 +1,7 @@
 (ns pagelet.db-test
   (:require [clojure.test :refer [deftest is]]
             [duckdb.core :as duckdb]
+            [integrant.core :as ig]
             [pagelet.db :as db]
             [pagelet.migrations :as migrations]))
 
@@ -26,3 +27,36 @@
       (finally
         (duckdb/close! conn)
         (os/sh "rm" "-f" path (str path ".wal"))))))
+
+;; DUCKDB_MEMORY_LIMIT: applied when the connection opens, global to the
+;; database, and refused unless it looks like a DuckDB size.
+
+(defn- memory-limit [conn]
+  (:m (db/execute-one! conn ["select current_setting('memory_limit') as m"])))
+
+(defn- with-conn [opts f]
+  (mkdir ".tmp")
+  (let [path (str ".tmp/db-test-" (rand-int 100000000) ".duckdb")]
+    (try
+      (let [conn (ig/init-key ::db/conn (assoc opts :path path))]
+        (try (f conn) (finally (ig/halt-key! ::db/conn conn))))
+      (finally
+        (os/sh "rm" "-f" path (str path ".wal"))))))
+
+(deftest a-memory-limit-is-applied
+  ;; 128MB is decimal megabytes; DuckDB reports it in MiB.
+  (with-conn {:memory-limit "128MB"}
+    (fn [conn] (is (= "122.0 MiB" (memory-limit conn))))))
+
+(deftest no-memory-limit-keeps-duckdbs-default
+  ;; The default depends on the machine's RAM, so compare with a fresh
+  ;; database rather than hard-coding it.
+  (let [plain (duckdb/open "")
+        default (memory-limit plain)]
+    (duckdb/close! plain)
+    (with-conn {} (fn [conn] (is (= default (memory-limit conn)))))
+    (with-conn {:memory-limit ""} (fn [conn] (is (= default (memory-limit conn)))))))
+
+(deftest a-bad-memory-limit-fails-init
+  (doseq [bad ["lots" "128MB'; drop table sites; --" "128 parsecs"]]
+    (is (thrown? Exception (with-conn {:memory-limit bad} (fn [_] nil))) bad)))

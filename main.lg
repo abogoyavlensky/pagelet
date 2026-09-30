@@ -18,8 +18,22 @@
       ch
       (catch Exception _ nil))))
 
+(defn- start!
+  "Start the system, or say why not and exit 1. integrant wraps a failing
+   component's exception (\"Error on key ... when building system\"), and
+   the reason, a bad setting or a locked database file, is in its causes."
+  []
+  (try
+    (system/start!)
+    (catch Exception e
+      (loop [e e]
+        (when e
+          (println (str "pagelet: " (ex-message e)))
+          (recur (ex-cause e))))
+      (os/exit 1))))
+
 (defn -main []
-  (let [system (system/start!)]
+  (let [system (start!)]
     (if-let [ch (signals)]
       ;; Halting stops the server, then flushes what is buffered, then
       ;; closes the database, so a deploy loses no events.

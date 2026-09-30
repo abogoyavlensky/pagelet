@@ -111,6 +111,7 @@ Environment variables, each with a development default:
 | `ADMIN_PASSWORD` | `admin` (warns) | the dashboard password; only its SHA-256 is kept |
 | `TRUST_PROXY` | `false` | `true` behind a reverse proxy: the client IP is the first `X-Forwarded-For` entry |
 | `FLUSH_INTERVAL_MS` | `5000` | how often buffered events are written to DuckDB (sooner at 500 queued) |
+| `DUCKDB_MEMORY_LIMIT` | DuckDB's own (80% of RAM) | a cap such as `128MB`; set it in a container with a memory limit, which DuckDB would otherwise overrun |
 
 Events are buffered in memory and written in batches. On `SIGINT` or
 `SIGTERM` (Linux) the server stops taking requests, writes what is
@@ -151,7 +152,7 @@ lgx check               # lgx test, then lgx e2e
 The image (`debian:trixie-slim` plus `libstdc++6`) wraps a `bin/pagelet`
 built outside it, as quickmeet does. `lgx docker` builds the binary, then
 the image, starts it and checks `/api/health`. The binary must be built on
-a glibc no newer than trixie's 2.41 (CI builds on ubuntu-latest, 2.39); see
+a glibc no newer than trixie's 2.41 (CI builds on ubuntu-24.04, 2.39, pinned for this reason); see
 docs/KNOWLEDGE.md. CI (`.github/workflows/test.yml`) runs the unit tests,
 the browser tests and this smoke test on every push.
 
@@ -164,5 +165,39 @@ the browser tests and this smoke test on every push.
 
 ## Deployment
 
-Next: `compose.yaml` and a deploy workflow, as in quickmeet, once there is
-a remote and a server.
+Every push to `master` deploys to `https://pagelet.absky.dev` on the
+`personal` [uncloud](https://uncloud.run/docs) cluster (the one linkboard
+runs on). `.github/workflows/deploy.yml` runs the tests (`test.yml`), builds
+the dashboard and `bin/pagelet`, smoke-tests the image around that binary,
+runs `uc deploy` with `compose.yaml`, and checks `/api/health` over HTTPS.
+uncloud builds the image on the runner and ships it over SSH; its Caddy
+terminates TLS and limits request bodies to 64 KB.
+
+Only CI builds what ships: the image is `debian:trixie-slim` (glibc 2.41),
+and a binary built on a newer system (Ubuntu 26.04 links glibc 2.43) will
+not start in it.
+
+The repository needs:
+
+| Kind | Name | Value |
+|---|---|---|
+| variable | `SERVER_IP` | the `personal` server's address |
+| variable | `APP_DOMAIN` | `pagelet.absky.dev` (a deploy fails if unset) |
+| secret | `SSH_PRIVATE_KEY` | a key authorized for `root@SERVER_IP` |
+| secret | `ADMIN_PASSWORD` | the dashboard password |
+
+plus a DNS A record for `APP_DOMAIN` pointing at the server.
+
+The database lives on the server in `/root/pagelet-data/pagelet.duckdb`,
+on a bind mount that survives deploys. It is not backed up yet
+(docs/backlog/duckdb-backups.md). DuckDB lets one process open the file, so
+updates are stop-first: the old container gets SIGTERM, writes its
+buffered events and exits, then the new one starts. A deploy is a few
+seconds of downtime; the tracker's requests in that window fail.
+
+Logs and state, from a machine with the SSH key:
+
+```
+uc --context personal --connect root@<SERVER_IP> logs pagelet
+uc --context personal --connect root@<SERVER_IP> ls
+```

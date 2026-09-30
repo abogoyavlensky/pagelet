@@ -1,7 +1,8 @@
 (ns pagelet.db
   (:require [duckdb.core :as duckdb]
             [integrant.core :as ig]
-            [pagelet.migrations :as migrations]))
+            [pagelet.migrations :as migrations]
+            [string :as string]))
 
 ;; The database component: a DuckDB connection with the schema migrated up
 ;; to date, and the queries that are not reports (stats.lg owns those).
@@ -13,10 +14,31 @@
 ;; A DuckDB file is locked by the process that opens it; the connectable
 ;; wraps a database/sql pool and is safe to share between threads.
 
-(defmethod ig/init-key ::conn [_ {:keys [path]}]
+;; DUCKDB_MEMORY_LIMIT. Unset, DuckDB sizes itself from the RAM it sees,
+;; which in a container with a memory limit can be far more than the
+;; container may use. The setting is global to the database, so one SET
+;; covers every connection in the pool. SET takes no ? parameter, so the
+;; value is spliced in, and only after it is shown to be a plain size.
+(def ^:private memory-limit-re
+  #"\d+(\.\d+)?\s*(B|KB|MB|GB|TB|KiB|MiB|GiB|TiB)")
+
+(defn- set-memory-limit! [conn limit]
+  (when-not (re-matches memory-limit-re limit)
+    (throw (ex-info (str "DUCKDB_MEMORY_LIMIT must be a size like 128MB or 1GiB, got: " (pr-str limit))
+                    {:memory-limit limit})))
+  (duckdb/execute! conn [(str "SET memory_limit = '" limit "'")]))
+
+(defmethod ig/init-key ::conn [_ {:keys [path memory-limit]}]
   (let [conn (duckdb/open path)]
-    (migrations/migrate! conn)
-    conn))
+    ;; A failed init must not keep the file locked.
+    (try
+      (when-not (string/blank? (str memory-limit))
+        (set-memory-limit! conn memory-limit))
+      (migrations/migrate! conn)
+      conn
+      (catch Throwable e
+        (duckdb/close! conn)
+        (throw e)))))
 
 (defmethod ig/halt-key! ::conn [_ conn]
   (duckdb/close! conn))
