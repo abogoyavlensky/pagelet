@@ -1,0 +1,37 @@
+(ns main
+  (:require [async :as async]
+            [http :as http]
+            [pagelet.system :as system]))
+
+;; pagelet: cookie-less web analytics from a single binary. Run with
+;; `lgx run`, then open http://localhost:8080. See README.md for the
+;; environment variables.
+
+(defn- signals
+  "A channel that receives SIGINT and SIGTERM, or nil where let-go cannot
+   deliver signals: signal-notify is Linux-only in let-go 1.13.0 and throws
+   \"unsupported\" elsewhere (macOS)."
+  []
+  (let [ch (async/chan 1)]
+    (try
+      (syscall/signal-notify ch syscall/SIGINT syscall/SIGTERM)
+      ch
+      (catch Exception _ nil))))
+
+(defn -main []
+  (let [system (system/start!)]
+    (if-let [ch (signals)]
+      ;; Halting stops the server, then flushes what is buffered, then
+      ;; closes the database, so a deploy loses no events.
+      (do
+        (async/<!! ch)
+        (println "pagelet: shutting down")
+        (system/stop! system)
+        (os/exit 0))
+      ;; No signals: serve until the process is killed. Events still in
+      ;; the buffer are lost then.
+      (http/wait (:pagelet.server/http system)))))
+
+;; lg -b runs top-level forms at compile time, so without this guard
+;; `lgx build` would open the database and start a server while bundling.
+(when-not *compiling-aot* (-main))

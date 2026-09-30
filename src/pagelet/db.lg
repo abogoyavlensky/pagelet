@@ -1,0 +1,81 @@
+(ns pagelet.db
+  (:require [duckdb.core :as duckdb]
+            [integrant.core :as ig]
+            [pagelet.migrations :as migrations]))
+
+;; The database component: a DuckDB connection with the schema migrated up
+;; to date, and the queries that are not reports (stats.lg owns those).
+;;
+;; Queries are plain SQL strings with ? parameters. No HoneySQL: let-go
+;; 1.13.0 runs every http handler on one shared dynamic-binding stack, and
+;; HoneySQL binds dynamic vars while it formats.
+;;
+;; A DuckDB file is locked by the process that opens it; the connectable
+;; wraps a database/sql pool and is safe to share between threads.
+
+(defmethod ig/init-key ::conn [_ {:keys [path]}]
+  (let [conn (duckdb/open path)]
+    (migrations/migrate! conn)
+    conn))
+
+(defmethod ig/halt-key! ::conn [_ conn]
+  (duckdb/close! conn))
+
+(def query duckdb/query)
+(def execute! duckdb/execute!)
+(def execute-one! duckdb/execute-one!)
+
+(defn sites
+  "Every site, ordered by name."
+  [conn]
+  (query conn ["select id, name, domain, strftime(created_at, '%Y-%m-%dT%H:%M:%S') as created_at
+                from sites order by name, domain"]))
+
+(defn sites-by-domain
+  "Every site keyed by its domain: the ingest's lookup table."
+  [conn]
+  (into {} (map (juxt :domain identity)) (sites conn)))
+
+;; ---- sites --------------------------------------------------------------
+
+(def ^:private site-columns
+  "id, name, domain, strftime(created_at, '%Y-%m-%dT%H:%M:%S') as created_at")
+
+(defn site-by-id [conn id]
+  (execute-one! conn [(str "select " site-columns " from sites where id = ?") id]))
+
+(defn site-by-domain [conn domain]
+  (execute-one! conn [(str "select " site-columns " from sites where domain = ?") domain]))
+
+(defn create-site! [conn id name domain]
+  (execute-one! conn [(str "insert into sites values (?, ?, ?, now() at time zone 'UTC')
+                            returning " site-columns)
+                      id name domain]))
+
+(defn update-site! [conn id name domain]
+  (execute-one! conn [(str "update sites set name = ?, domain = ? where id = ?
+                            returning " site-columns)
+                      name domain id]))
+
+(defn delete-site!
+  "Delete a site and every event it has, in one transaction."
+  [conn id]
+  (duckdb/with-transaction [tx conn]
+    (execute! tx ["delete from events where site_id = ?" id])
+    (execute! tx ["delete from sites where id = ?" id])))
+
+;; ---- sessions -----------------------------------------------------------
+
+(defn create-session! [conn id]
+  (execute! conn ["insert into sessions values (?, now() at time zone 'UTC')" id]))
+
+(defn session-live?
+  "Whether `id` is a session younger than `days` days."
+  [conn id days]
+  (some? (execute-one! conn ["select id from sessions
+                              where id = ?
+                                and created_at > (now() at time zone 'UTC') - to_days(?)"
+                             id days])))
+
+(defn delete-session! [conn id]
+  (execute! conn ["delete from sessions where id = ?" id]))

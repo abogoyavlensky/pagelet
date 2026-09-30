@@ -1,0 +1,14 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>A single-page app</title>
+    <script defer data-dev src="http://127.0.0.1:8099/p.js"></script>
+  </head>
+  <body>
+    <!-- Client-side routing: the links change the URL with pushState. -->
+    <a id="about" href="/about" onclick="history.pushState({}, '', '/about'); return false">About</a>
+    <a id="pricing" href="/pricing" onclick="history.pushState({}, '', '/pricing'); return false">Pricing</a>
+    <button id="signup" onclick="pagelet('signup', {plan: 'pro'})">Sign up</button>
+  </body>
+</html>

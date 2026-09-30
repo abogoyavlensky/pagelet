@@ -1,0 +1,174 @@
+(ns pagelet.routes-test
+  (:require [clojure.test :refer [deftest is]]
+            [integrant.core :as ig]
+            [json :as json]
+            [pagelet.auth :as auth]
+            [pagelet.db :as db]
+            [pagelet.ingest :as ingest]
+            [pagelet.routes :as routes]
+            [string :as str]))
+
+;; The handler as a plain function over a throwaway DuckDB file: integrant
+;; starts the db and the ingest buffer (with a long interval, so flushes
+;; happen only when a test asks). No http server.
+
+(def ^:private chrome
+  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0 Safari/537.36")
+
+(defn- with-handler [f]
+  (mkdir ".tmp")
+  (let [path (str ".tmp/routes-test-" (rand-int 100000000) ".duckdb")
+        system (ig/init {:pagelet.db/conn {:path path}
+                         :pagelet.ingest/buffer {:conn (ig/ref :pagelet.db/conn)
+                                                 :interval-ms 600000}})
+        conn (:pagelet.db/conn system)
+        buffer (:pagelet.ingest/buffer system)]
+    (try
+      (f (routes/handler {:db conn
+                          :buffer buffer
+                          :auth {:password-hash (auth/password-hash "secret")}
+                          :trust-proxy? false})
+         buffer
+         conn)
+      (finally
+        (ig/halt! system)
+        (os/sh "rm" "-f" path (str path ".wal"))))))
+
+(defn- call
+  ([handler method uri] (call handler method uri nil nil))
+  ([handler method uri body] (call handler method uri body nil))
+  ([handler method uri body headers]
+   (let [res (handler {:request-method method
+                       :uri uri
+                       :remote-addr "1.2.3.4:5000"
+                       :body body
+                       :headers headers})]
+     (assoc res :json (when (and (seq (:body res))
+                                 (= "application/json" (get-in res [:headers "Content-Type"])))
+                        (json/read-json (:body res) {:keywords? true}))))))
+
+(defn- send-json [handler method uri body & [headers]]
+  (call handler method uri (if (map? body) (json/write-json body) body)
+        (merge (when (map? body) {"content-type" "application/json"}) headers)))
+
+(defn- login [handler]
+  (let [res (send-json handler :post "/api/login" {:password "secret"})
+        cookie (second (re-find #"^session=([^;]*)" (str (get-in res [:headers "Set-Cookie"]))))]
+    {"cookie" (str "session=" cookie)}))
+
+(deftest health-is-public
+  (with-handler
+    (fn [handler _ _]
+      (is (= 200 (:status (call handler :get "/api/health"))))
+      (is (= {:ok true} (:json (call handler :get "/api/health")))))))
+
+(deftest login-and-sessions
+  (with-handler
+    (fn [handler _ _]
+      (is (= 401 (:status (send-json handler :post "/api/login" {:password "nope"}))))
+      (is (= 415 (:status (send-json handler :post "/api/login" "{\"password\":\"secret\"}"))))
+      (let [res (send-json handler :post "/api/login" {:password "secret"})]
+        (is (= 200 (:status res)))
+        (is (re-find #"^session=[0-9a-f]{32}; Path=/; HttpOnly; SameSite=Lax; Max-Age=31536000$"
+                     (get-in res [:headers "Set-Cookie"]))))
+      ;; Behind TLS the cookie is Secure.
+      (is (str/ends-with? (get-in (send-json handler :post "/api/login" {:password "secret"}
+                                        {"x-forwarded-proto" "https"})
+                                  [:headers "Set-Cookie"])
+                          "; Secure"))
+      (is (= 401 (:status (call handler :get "/api/me"))))
+      (is (= 401 (:status (call handler :get "/api/me" nil {"cookie" "session=bogus"}))))
+      (let [me (login handler)]
+        (is (= 200 (:status (call handler :get "/api/me" nil me))))
+        (let [out (call handler :post "/api/logout" nil me)]
+          (is (= 200 (:status out)))
+          (is (str/includes? (get-in out [:headers "Set-Cookie"]) "Max-Age=0")))
+        (is (= 401 (:status (call handler :get "/api/me" nil me))))))))
+
+(deftest sites-crud
+  (with-handler
+    (fn [handler buffer _]
+      (is (= 401 (:status (call handler :get "/api/sites"))))
+      (is (= 401 (:status (send-json handler :post "/api/sites" {:name "x" :domain "x.com"}))))
+      (let [me (login handler)
+            created (send-json handler :post "/api/sites" {:name " Example " :domain "Example.COM"} me)
+            site (:json created)]
+        (is (= 201 (:status created)))
+        (is (re-matches #"[0-9a-f]{12}" (:id site)))
+        (is (= {:name "Example" :domain "example.com"} (select-keys site [:name :domain])))
+        (is (re-matches #"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}" (:created_at site)))
+        ;; The ingest cache knows it at once.
+        (is (= (:id site) (:id (get (ingest/sites buffer) "example.com"))))
+        (is (= 409 (:status (send-json handler :post "/api/sites" {:name "Again" :domain "example.com"} me))))
+        (doseq [bad ["https://example.com" "example.com:8080" "example.com/x" "" "-a.com" "a..com"]]
+          (is (= 400 (:status (send-json handler :post "/api/sites" {:name "Bad" :domain bad} me))) bad))
+        (is (= 400 (:status (send-json handler :post "/api/sites" {:name "" :domain "ok.com"} me))))
+        (is (= 400 (:status (send-json handler :post "/api/sites" {:name (apply str (repeat 65 "n")) :domain "ok.com"} me))))
+        (let [other (:json (send-json handler :post "/api/sites" {:name "Another" :domain "another.org"} me))]
+          (is (= ["Another" "Example"] (map :name (:json (call handler :get "/api/sites" nil me)))))
+          ;; Update: rename, move to a new domain, refuse a taken one.
+          (let [res (send-json handler :put (str "/api/sites/" (:id site)) {:name "Renamed" :domain "example.net"} me)]
+            (is (= 200 (:status res)))
+            (is (= "Renamed" (:name (:json res))))
+            (is (= "example.net" (:domain (:json res)))))
+          (is (nil? (get (ingest/sites buffer) "example.com")))
+          (is (some? (get (ingest/sites buffer) "example.net")))
+          (is (= 200 (:status (send-json handler :put (str "/api/sites/" (:id site)) {:name "Same domain" :domain "example.net"} me))))
+          (is (= 409 (:status (send-json handler :put (str "/api/sites/" (:id site)) {:name "X" :domain "another.org"} me))))
+          (is (= 404 (:status (send-json handler :put "/api/sites/000000000000" {:name "X" :domain "x.org"} me))))
+          (is (= 400 (:status (send-json handler :put (str "/api/sites/" (:id other)) {:name "X" :domain "bad domain"} me)))))))))
+
+(deftest events-to-stats
+  (with-handler
+    (fn [handler buffer conn]
+      (let [me (login handler)
+            site (:json (send-json handler :post "/api/sites" {:name "Example" :domain "example.com"} me))
+            event (fn [payload & [headers]]
+                    (call handler :post "/api/event" (json/write-json payload)
+                          (merge {"content-type" "text/plain" "user-agent" chrome} headers)))]
+        (let [res (event {:d "example.com" :u "https://example.com/pricing" :r "" :n "pageview"})]
+          (is (= 202 (:status res)))
+          (is (= "*" (get-in res [:headers "Access-Control-Allow-Origin"])))
+          (is (= "" (:body res))))
+        ;; Dropped on purpose: still 202. Not an event: 400.
+        (is (= 202 (:status (event {:d "unknown.com" :u "https://unknown.com/"}))))
+        (is (= 400 (:status (call handler :post "/api/event" "nope"))))
+        (is (= 204 (:status (call handler :options "/api/event"))))
+        (is (= 1 (ingest/flush! buffer)))
+        (let [stats (call handler :get (str "/api/sites/" (:id site) "/stats?period=today") nil me)]
+          (is (= 200 (:status stats)))
+          (is (= 1 (get-in stats [:json :totals :visitors])))
+          (is (= 1 (get-in stats [:json :totals :pageviews])))
+          (is (= "hour" (get-in stats [:json :period :bucket])))
+          (is (= 24 (count (get-in stats [:json :timeseries]))))
+          (is (= [{:name "/pricing" :visitors 1 :pageviews 1}] (get-in stats [:json :pages]))))
+        (is (= 200 (:status (call handler :get (str "/api/sites/" (:id site) "/stats") nil me))))
+        (is (= 200 (:status (call handler :get (str "/api/sites/" (:id site)
+                                                    "/stats?period=custom&from=2026-09-01&to=2026-09-03")
+                                  nil me))))
+        (is (= 400 (:status (call handler :get (str "/api/sites/" (:id site) "/stats?period=forever") nil me))))
+        (is (= 401 (:status (call handler :get (str "/api/sites/" (:id site) "/stats")))))
+        (is (= 404 (:status (call handler :get "/api/sites/000000000000/stats" nil me))))
+        (is (= {:online 1} (:json (call handler :get (str "/api/sites/" (:id site) "/realtime") nil me))))
+        ;; Delete: an event still queued for the site is dropped, and the
+        ;; stored ones go with it.
+        (event {:d "example.com" :u "https://example.com/late"})
+        (is (= 200 (:status (call handler :delete (str "/api/sites/" (:id site)) nil me))))
+        (is (= 0 (ingest/flush! buffer)))
+        (is (= 0 (:n (db/execute-one! conn ["select count(*) as n from events"]))))
+        (is (= 404 (:status (call handler :get (str "/api/sites/" (:id site) "/realtime") nil me))))
+        (is (= [] (:json (call handler :get "/api/sites" nil me))))))))
+
+(deftest static-files
+  (with-handler
+    (fn [handler _ _]
+      (let [res (call handler :get "/p.js")]
+        (is (= 200 (:status res)))
+        (is (= "text/javascript; charset=utf-8" (get-in res [:headers "Content-Type"])))
+        (is (= "public, max-age=86400" (get-in res [:headers "Cache-Control"]))))
+      (is (= 404 (:status (call handler :get "/app/missing.js"))))
+      (is (= 404 (:status (call handler :get "/app/..%2F..%2Flgx.edn"))))
+      ;; The dashboard: served when built, a plain 503 before.
+      (doseq [path ["/" "/login" "/sites" "/sites/abc"]]
+        (is (contains? #{200 503} (:status (call handler :get path))) path))
+      (is (= 404 (:status (call handler :get "/nope")))))))

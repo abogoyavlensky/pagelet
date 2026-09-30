@@ -1,0 +1,165 @@
+(ns pagelet.stats
+  (:require [pagelet.db :as db]))
+
+;; The dashboard's reports: one fn per panel, each over a site and a period,
+;; and `stats` putting them together in the shape the UI reads (the stats
+;; response in the plan's Design; ui/src/api.ts mirrors it).
+;;
+;; All date work is DuckDB's. A period is two naive-UTC timestamp strings,
+;; :from inclusive and :to-exclusive, and a bucket, "hour" or "day"; the
+;; bucket is interpolated into the SQL, which is safe because it only ever
+;; comes from `period`, never from the request.
+;;
+;; visitors is count(distinct visitor); pageviews counts rows named
+;; 'pageview'.
+
+(def ^:private list-limit 10)
+
+(defn- sql-day
+  "`expr` evaluated by DuckDB as a date, as YYYY-MM-DD. `expr` is SQL over
+   one ?::date parameter."
+  [conn expr day]
+  (:d (db/execute-one! conn [(str "select (" expr ")::varchar as d") day])))
+
+(defn today
+  "The current UTC day, YYYY-MM-DD."
+  [conn]
+  (:d (db/execute-one! conn ["select (now() at time zone 'UTC')::date::varchar as d"])))
+
+(defn- valid-day
+  "`s` when it is a real YYYY-MM-DD date, else nil."
+  [conn s]
+  (when (and (string? s) (re-matches #"\d{4}-\d{2}-\d{2}" s))
+    (let [d (:d (db/execute-one! conn ["select try_cast(? as date)::varchar as d" s]))]
+      (when (= s d) d))))
+
+(defn- span
+  "The period from day `from` through day `to`, both inclusive."
+  [conn from to bucket]
+  {:from (str from "T00:00:00")
+   :to-exclusive (str (sql-day conn "?::date + 1" to) "T00:00:00")
+   :bucket bucket})
+
+(defn period
+  "The period `params` asks for, relative to `now-day` (YYYY-MM-DD):
+   {:from :to-exclusive :bucket} or {:error message}. params: :period is
+   today, 7d (the default), 30d or custom; custom takes :from and :to,
+   inclusive days."
+  [conn params now-day]
+  (case (or (:period params) "7d")
+    "today" (span conn now-day now-day "hour")
+    "7d" (span conn (sql-day conn "?::date - 6" now-day) now-day "day")
+    "30d" (span conn (sql-day conn "?::date - 29" now-day) now-day "day")
+    "custom" (let [from (valid-day conn (:from params))
+                   to (valid-day conn (:to params))]
+               (cond
+                 (not (and from to)) {:error "from and to must be dates, YYYY-MM-DD"}
+                 (pos? (compare from to)) {:error "from must not be after to"}
+                 :else (span conn from to (if (= from to) "hour" "day"))))
+    {:error "period must be today, 7d, 30d or custom"}))
+
+(def ^:private in-period
+  "site_id = ? and ts >= ?::timestamp and ts < ?::timestamp")
+
+(defn- in-period-params [site-id {:keys [from to-exclusive]}]
+  [site-id from to-exclusive])
+
+(defn totals [conn site-id p]
+  (db/execute-one! conn
+                   (into [(str "select count(distinct visitor) as visitors,
+                                       count(*) filter (where name = 'pageview') as pageviews,
+                                       case when count(distinct visitor) = 0 then 0.0
+                                            else round((count(*) filter (where name = 'pageview'))::double
+                                                       / count(distinct visitor), 1)
+                                       end as views_per_visitor
+                                from events where " in-period)]
+                         (in-period-params site-id p))))
+
+(def ^:private bucket-format
+  {"hour" "%Y-%m-%dT%H:00"
+   "day" "%Y-%m-%d"})
+
+(defn timeseries
+  "Every bucket of the period, oldest first, zero-filled."
+  [conn site-id {:keys [from to-exclusive bucket] :as p}]
+  (db/query conn
+            (into [(str "with buckets as (
+                           select t from generate_series(?::timestamp,
+                                                         ?::timestamp - interval 1 " bucket ",
+                                                         interval 1 " bucket ") as g(t)),
+                         counts as (
+                           select date_trunc('" bucket "', ts) as t,
+                                  count(distinct visitor) as visitors,
+                                  count(*) filter (where name = 'pageview') as pageviews
+                           from events where " in-period "
+                           group by 1)
+                         select strftime(b.t, '" (bucket-format bucket) "') as t,
+                                coalesce(c.visitors, 0) as visitors,
+                                coalesce(c.pageviews, 0) as pageviews
+                         from buckets b left join counts c on c.t = b.t
+                         order by b.t")
+                   from to-exclusive]
+                  (in-period-params site-id p))))
+
+(defn- ranked
+  "The top values of `column` by visitors, then pageviews, then name."
+  [column]
+  (fn [conn site-id p]
+    (db/query conn
+              (into [(str "select " column " as label,
+                                  count(distinct visitor) as visitors,
+                                  count(*) filter (where name = 'pageview') as pageviews
+                           from events
+                           where " in-period " and " column " is not null
+                           group by " column "
+                           order by visitors desc, pageviews desc, label
+                           limit " list-limit)]
+                    (in-period-params site-id p)))))
+
+(defn- named [rows]
+  (mapv (fn [row] (-> row (assoc :name (:label row)) (dissoc :label))) rows))
+
+(def ^:private pages* (ranked "path"))
+(def ^:private referrers* (ranked "referrer"))
+(def ^:private browsers* (ranked "browser"))
+(def ^:private os* (ranked "os"))
+(def ^:private devices* (ranked "device"))
+
+(defn pages [conn site-id p] (named (pages* conn site-id p)))
+(defn referrers [conn site-id p] (named (referrers* conn site-id p)))
+(defn browsers [conn site-id p] (named (browsers* conn site-id p)))
+(defn operating-systems [conn site-id p] (named (os* conn site-id p)))
+(defn devices [conn site-id p] (named (devices* conn site-id p)))
+
+(defn events
+  "Custom events: the top names by count, then visitors, then name."
+  [conn site-id p]
+  (db/query conn
+            (into [(str "select name, count(*) as count, count(distinct visitor) as visitors
+                         from events
+                         where " in-period " and name <> 'pageview'
+                         group by name
+                         order by count desc, visitors desc, name
+                         limit " list-limit)]
+                  (in-period-params site-id p))))
+
+(defn stats
+  "Every panel for `site-id` over period `p`."
+  [conn site-id p]
+  {:period {:from (:from p) :to (:to-exclusive p) :bucket (:bucket p)}
+   :totals (totals conn site-id p)
+   :timeseries (timeseries conn site-id p)
+   :pages (pages conn site-id p)
+   :referrers (referrers conn site-id p)
+   :browsers (browsers conn site-id p)
+   :os (operating-systems conn site-id p)
+   :devices (devices conn site-id p)
+   :events (events conn site-id p)})
+
+(defn realtime
+  "{:online n}: distinct visitors in the last five minutes."
+  [conn site-id]
+  {:online (:online (db/execute-one! conn ["select count(distinct visitor) as online from events
+                                            where site_id = ?
+                                              and ts > (now() at time zone 'UTC') - interval 5 minute"
+                                           site-id]))})
