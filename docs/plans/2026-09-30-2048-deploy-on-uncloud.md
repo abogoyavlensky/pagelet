@@ -132,10 +132,10 @@ pagelet/
 - Modify: `.mise.toml`
 - Create: `compose.yaml`
 
-- [ ] **Step 1: Pin uc**
+- [x] **Step 1: Pin uc**
   `.mise.toml`: `uc = "0.20.0"` under `[tools]`, `uc = "github:psviderski/uncloud"` under `[tool_alias]` (as linkboard's). Run: `mise install && mise exec -- uc --version`. Expected: a version line with 0.20.0.
 
-- [ ] **Step 2: Write `compose.yaml`**
+- [x] **Step 2: Write `compose.yaml`**
   Model on linkboard's and quickmeet's, with a comment on each non-obvious key:
   - top-level `x-context: personal`;
   - service `pagelet`: `build:` with `platforms: [linux/amd64]`, `cache_from: [type=gha]`, `cache_to: [type=gha,mode=max]`;
@@ -148,8 +148,10 @@ pagelet/
 
   No `scale`/`replicas` key: DuckDB is single-process.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
   `git add .mise.toml compose.yaml && git commit -m "compose.yaml for uncloud; pin uc"`
+
+> Deviation: uc has no `--version` flag; `mise which uc` resolves to `installs/uc/0.20.0/uc` (and `uc version` prints a banner).
 
 ### Task 3: Validate the compose file offline
 
