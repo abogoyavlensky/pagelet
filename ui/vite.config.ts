@@ -14,6 +14,9 @@ export default defineConfig(({ command }) => ({
     outDir: '../resources/public/app',
     emptyOutDir: true,
     assetsDir: '',
+    // Recharts makes the one chunk ~640 kB (190 kB gzipped). It ships in
+    // the binary and is cached for a day; splitting buys little here.
+    chunkSizeWarningLimit: 800,
   },
   server: {
     proxy: {
