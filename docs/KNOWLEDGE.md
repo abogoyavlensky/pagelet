@@ -102,7 +102,7 @@ from the browser process with the original agent. Launch the browser with
   build quickmeet uses, already in `~/.cache/ms-playwright`).
 - `npx playwright install chromium-headless-shell` fails on this dev box:
   "Playwright does not support chromium-headless-shell on ubuntu26.04-x64".
-  The cached browser still runs. CI (ubuntu-latest) installs normally.
+  The cached browser still runs. CI (ubuntu-24.04) installs normally.
 - The tracker spec serves the app from a made-up public host with
   `page.route` and the tracker from `127.0.0.1:8099`. Chromium 141's local
   network access checks block that ("the request client is not a secure
@@ -128,7 +128,9 @@ no `assetsInlineLimit` change.
 - The glibc floor comes from the build host. Built on this dev box (Ubuntu
   26.04, glibc 2.43) the binary needs `GLIBC_2.43` (`objdump -T`), newer
   than trixie's 2.41, so a locally built binary will **not** start in the
-  image. CI builds on ubuntu-latest (glibc 2.39), which trixie satisfies.
+  image. CI builds on ubuntu-24.04 (glibc 2.39), which trixie satisfies; the
+  workflows pin that runner, because `ubuntu-latest` will move to a newer
+  Ubuntu whose glibc trixie lacks.
   Build the image from a CI binary, or build the binary on a host with a
   glibc no newer than the base image's.
 - Not run here: the agent user has no access to the Docker socket, so

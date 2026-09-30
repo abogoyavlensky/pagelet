@@ -14,12 +14,14 @@ concurrency:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    # Pinned, not ubuntu-latest: the binary links the runner's glibc, and the
+    # trixie image (glibc 2.41) cannot run one from a newer Ubuntu.
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
 
       # lgx, Go and Node at the versions in .mise.toml. The DuckDB driver is
-      # cgo, so the build also needs gcc, which ubuntu-latest has. No
+      # cgo, so the build also needs gcc, which the runner has. No
       # CGO_ENABLED=0 anywhere: it would drop the driver.
       - uses: jdx/mise-action@v3
 

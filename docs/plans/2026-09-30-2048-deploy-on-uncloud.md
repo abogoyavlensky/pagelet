@@ -243,6 +243,8 @@ pagelet/
 
   Two commits, as AGENTS.md asks: docs first, then `Backlog: DuckDB backups; note the Caddy body limit`.
 
+> Deviation (review): both workflows pin `runs-on: ubuntu-24.04` instead of `ubuntu-latest`. The binary links the runner's glibc; when `ubuntu-latest` moves to a newer Ubuntu, CI would build a binary the trixie image (glibc 2.41) cannot run, and every deploy would stop at the smoke test. README, Dockerfile and KNOWLEDGE.md say so.
+
 - [x] **Step 3: Commit**
   `git commit -am "docs: deployment on uncloud"`, then the backlog commit.
 

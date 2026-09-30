@@ -152,7 +152,7 @@ lgx check               # lgx test, then lgx e2e
 The image (`debian:trixie-slim` plus `libstdc++6`) wraps a `bin/pagelet`
 built outside it, as quickmeet does. `lgx docker` builds the binary, then
 the image, starts it and checks `/api/health`. The binary must be built on
-a glibc no newer than trixie's 2.41 (CI builds on ubuntu-latest, 2.39); see
+a glibc no newer than trixie's 2.41 (CI builds on ubuntu-24.04, 2.39, pinned for this reason); see
 docs/KNOWLEDGE.md. CI (`.github/workflows/test.yml`) runs the unit tests,
 the browser tests and this smoke test on every push.
 

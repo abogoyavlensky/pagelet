@@ -6,7 +6,7 @@
 #
 # The DuckDB driver is cgo, so the binary links glibc and libstdc++
 # dynamically: a glibc base, not Alpine. Trixie, not bookworm: a binary
-# built on ubuntu-latest needs glibc 2.39, and bookworm ships 2.36.
+# built on ubuntu-24.04 (the CI runner) needs glibc 2.39, and bookworm ships 2.36.
 FROM debian:trixie-slim
 
 RUN apt-get update \
