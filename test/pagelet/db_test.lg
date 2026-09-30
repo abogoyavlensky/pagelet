@@ -20,8 +20,8 @@
       (migrations/migrate! conn)
       (is (= #{"sites" "events" "sessions" "salts" "ragtime_migrations"} (tables conn)))
       (migrations/migrate! conn)
-      (is (= 4 (:n (db/execute-one! conn ["select count(*) as n from ragtime_migrations"]))))
-      (migrations/rollback! conn 4)
+      (is (= 5 (:n (db/execute-one! conn ["select count(*) as n from ragtime_migrations"]))))
+      (migrations/rollback! conn 5)
       (is (= #{"ragtime_migrations"} (tables conn)))
       (is (= 0 (:n (db/execute-one! conn ["select count(*) as n from ragtime_migrations"]))))
       (finally

@@ -5,6 +5,7 @@
             [json :as json]
             [pagelet.db :as db]
             [pagelet.id :as id]
+            [pagelet.timezones :as timezones]
             [pagelet.ua :as ua]
             [pagelet.visitor :as visitor]
             [string :as str]))
@@ -13,7 +14,8 @@
 ;; DuckDB in batches.
 ;;
 ;; The request path does the minimum: parse, look the site up, classify the
-;; user agent, and conj a row onto an in-memory buffer. It never binds
+;; user agent, name the country from the tracker's time zone (never from
+;; the IP), and conj a row onto an in-memory buffer. It never binds
 ;; dynamic vars and never touches the database (let-go 1.13.0 runs every
 ;; handler on one shared binding stack).
 ;;
@@ -34,7 +36,7 @@
 (def ^:private max-buffered 100000)
 
 (def ^:private insert-row-sql
-  "(?, ?::timestamp, ?, ?, ?, ?, ?, ?, ?, ?)")
+  "(?, ?::timestamp, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
 
 ;; ---- parsing ------------------------------------------------------------
 
@@ -74,11 +76,20 @@
   (str (visitor/path-of u)
        (when (and (present? h) (str/starts-with? h "#")) h)))
 
+(defn- zone-country
+  "The tracker's time zone and the country it names, when the table knows
+   the zone; otherwise nil for both, so no client string is stored."
+  [z]
+  (if-let [country (when (string? z) (get timezones/zone->country z))]
+    {:timezone z :country country}
+    {:timezone nil :country nil}))
+
 (defn parse-event
   "A tracker POST body as {:ok row}, {:drop reason} for an event that is
    ignored on purpose (unknown site, bot), or {:error message} for a body
    that is not an event. The row carries the IP and user agent for the
-   flusher to hash; nothing is hashed here."
+   flusher to hash; nothing is hashed here. The country comes from the
+   payload's time zone (`z`), not from the IP."
   [body sites-by-domain req trust-proxy?]
   (let [body (str body)
         p (when (<= (count (.getBytes body)) max-body-bytes) (read-payload body))
@@ -91,7 +102,8 @@
       :else
       (if-let [site (find-site sites-by-domain (:d p))]
         (let [ua-string (str (get-in req [:headers "user-agent"]))
-              {:keys [browser os device bot?]} (ua/classify ua-string)]
+              {:keys [browser os device bot?]} (ua/classify ua-string)
+              {:keys [timezone country]} (zone-country (:z p))]
           (if bot?
             {:drop :bot}
             {:ok {:site-id (:id site)
@@ -104,6 +116,8 @@
                   :browser browser
                   :os os
                   :device device
+                  :timezone timezone
+                  :country country
                   :props (props-json (:p p))}}))
         {:drop :unknown-site}))))
 
@@ -199,13 +213,14 @@
 (defn- insert-batch! [conn ts rows]
   (db/execute! conn
                (into [(str "insert into events
-                            (site_id, ts, name, visitor, path, referrer, browser, os, device, props)
+                            (site_id, ts, name, visitor, path, referrer, browser, os, device,
+                             timezone, country, props)
                             values "
                            (str/join ", " (repeat (count rows) insert-row-sql)))]
                      (mapcat (fn [row]
                                [(:site-id row) ts (:name row) (:visitor row) (:path row)
                                 (:referrer row) (:browser row) (:os row) (:device row)
-                                (:props row)])
+                                (:timezone row) (:country row) (:props row)])
                              rows))))
 
 (defn flush!

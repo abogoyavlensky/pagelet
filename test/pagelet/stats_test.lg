@@ -10,10 +10,11 @@
 
 (def ^:private now-day "2026-09-10")
 
-(defn- insert! [conn ts n {:keys [site name visitor path referrer browser]}]
+(defn- insert! [conn ts n {:keys [site name visitor path referrer browser timezone country]}]
   (dotimes [_ n]
-    (db/execute! conn ["insert into events values (?, ?::timestamp, ?, ?, ?, ?, ?, 'macOS', 'desktop', null)"
-                       (or site "s1") ts (or name "pageview") visitor path referrer browser])))
+    (db/execute! conn ["insert into events values (?, ?::timestamp, ?, ?, ?, ?, ?, 'macOS', 'desktop', null, ?, ?)"
+                       (or site "s1") ts (or name "pageview") visitor path referrer browser
+                       timezone country])))
 
 (defn- seeded []
   (let [conn (duckdb/open "")]
@@ -35,7 +36,7 @@
       (insert! conn "2026-09-10 09:00:00" 3 {:site "s2" :visitor "vx" :path "/" :browser "Chrome"}))
     ;; Someone on the site right now.
     (db/execute! conn ["insert into events values ('s1', (now() at time zone 'UTC') - interval 2 minute,
-                        'pageview', 'vc', '/', null, 'Chrome', 'macOS', 'desktop', null)"])
+                        'pageview', 'vc', '/', null, 'Chrome', 'macOS', 'desktop', null, null, null)"])
     conn))
 
 (deftest periods
