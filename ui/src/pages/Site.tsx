@@ -99,31 +99,40 @@ export default function Site() {
       )}
 
       <div className="rise flex flex-wrap items-center justify-between gap-4 pt-6" style={delay(1)}>
-        <PeriodPicker value={period} onChange={choose} />
+        {/* Keyed on the period, so Back and Forward (which change the URL,
+            not the picker) remount it with the URL's range. */}
+        <PeriodPicker key={periodKey(period)} value={period} onChange={choose} />
         <p className="text-xs text-muted">All times UTC</p>
       </div>
 
-      {stats.error && !stats.data && (
-        <p role="alert" className="py-10 text-sm text-red-800">{stats.error.message}</p>
+      {/* A failed load keeps the last report on screen, marked as such, so
+          old numbers never pass for the period that was asked for. */}
+      {stats.error && (
+        <p role="alert" className="pt-6 text-sm text-red-800">
+          Could not load this period: {stats.error.message}.
+          {stats.data && ' Showing the previous one.'}{' '}
+          <button onClick={stats.reload} className="underline underline-offset-2">Retry</button>
+        </p>
       )}
 
       {stats.data && (
-        <Report stats={stats.data} metric={metric} onMetric={setMetric} loading={stats.loading} />
+        <Report stats={stats.data} metric={metric} onMetric={setMetric}
+          dim={stats.loading || !!stats.error} />
       )}
     </div>
   )
 }
 
-function Report({ stats, metric, onMetric, loading }: {
+function Report({ stats, metric, onMetric, dim }: {
   stats: Stats
   metric: Metric
   onMetric: (m: Metric) => void
-  loading: boolean
+  dim: boolean
 }) {
   const rows = (list: Stats['pages']) => list.map((r) => ({ name: r.name, a: r.visitors, b: r.pageviews }))
   const vp: [string, string] = ['Visitors', 'Views']
   return (
-    <div className={`transition-opacity ${loading ? 'opacity-60' : ''}`}>
+    <div className={`transition-opacity ${dim ? 'opacity-50' : ''}`}>
       <div className="rise" style={delay(2)}>
         <StatRow totals={stats.totals} metric={metric} onMetric={onMetric} />
       </div>

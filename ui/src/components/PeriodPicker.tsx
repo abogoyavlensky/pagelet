@@ -11,7 +11,11 @@ const PRESETS = [
 export default function PeriodPicker({ value, onChange }: { value: Period; onChange: (p: Period) => void }) {
   const [from, setFrom] = useState(value.period === 'custom' ? value.from : utcDay(-6))
   const [to, setTo] = useState(value.period === 'custom' ? value.to : utcDay())
-  const [custom, setCustom] = useState(value.period === 'custom')
+  // Custom mode follows the URL, plus a local flag for "Custom clicked, not
+  // applied yet"; the page keys this component on the period, so the date
+  // fields also reset when Back or Forward changes it.
+  const [picking, setPicking] = useState(false)
+  const custom = picking || value.period === 'custom'
   const valid = from !== '' && to !== '' && from <= to
 
   const tab = (active: boolean) =>
@@ -24,12 +28,12 @@ export default function PeriodPicker({ value, onChange }: { value: Period; onCha
       <div role="group" aria-label="Period" className="flex border-b border-hairline">
         {PRESETS.map((p) => (
           <button key={p.period} aria-pressed={!custom && value.period === p.period}
-            onClick={() => { setCustom(false); onChange({ period: p.period }) }}
+            onClick={() => { setPicking(false); onChange({ period: p.period }) }}
             className={tab(!custom && value.period === p.period)}>
             {p.label}
           </button>
         ))}
-        <button aria-pressed={custom} onClick={() => setCustom(true)} className={tab(custom)}>
+        <button aria-pressed={custom} onClick={() => setPicking(true)} className={tab(custom)}>
           Custom
         </button>
       </div>
