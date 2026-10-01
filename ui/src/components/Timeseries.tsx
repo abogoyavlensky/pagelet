@@ -26,7 +26,7 @@ function Readout({ active, payload, metric }: {
   const p = payload[0].payload
   const other: Metric = metric === 'visitors' ? 'pageviews' : 'visitors'
   return (
-    <div className="border border-hairline bg-card px-3 py-2 text-sm shadow-[0_8px_24px_-12px_#1b1a1740]">
+    <div className="border border-hairline bg-surface px-3 py-2 text-sm shadow-[0_8px_24px_-12px_#1b1a1740]">
       <p className="text-xs text-muted">{longDate(p.t)}</p>
       <p className="mt-1 flex items-center gap-2">
         <span className="inline-block h-0.5 w-3 bg-accent" />

@@ -33,7 +33,7 @@ export default function Login() {
     <main className="flex min-h-screen items-center justify-center px-6">
       <form
         onSubmit={submit}
-        className="rise w-full max-w-sm border border-hairline bg-card px-8 pt-10 pb-8 shadow-[0_1px_0_#e4e0d6,0_24px_48px_-32px_#1b1a1733]"
+        className="rise w-full max-w-sm border border-hairline bg-surface px-8 pt-10 pb-8 shadow-[0_1px_0_#e4e0d6,0_24px_48px_-32px_#1b1a1733]"
       >
         <Wordmark className="text-4xl" />
         <p className="mt-2 text-sm text-muted">Analytics without the cookies.</p>

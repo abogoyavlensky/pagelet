@@ -1,54 +1,70 @@
 @import "tailwindcss";
-@import "@fontsource-variable/fraunces/opsz.css";
+@import "@fontsource-variable/newsreader/opsz.css";
 @import "@fontsource/ibm-plex-sans/latin-400.css";
 @import "@fontsource/ibm-plex-sans/latin-500.css";
 
-/* Graphite & Paper: light, editorial, calm. Tailwind exposes each token as
-   a utility (bg-paper, text-ink, border-hairline, text-accent, ...). */
+/* Lichen: a warm, quiet light theme with a sage accent, and a dark one that
+   follows the system. Tailwind exposes each token as a utility (bg-paper,
+   bg-surface, text-ink, text-muted, border-hairline, text-accent, ...).
+   The accent marks only the chart line, the online dot, the "You're live"
+   check and focus; buttons and links are ink. */
 @theme {
-  --color-paper: #f6f4ee;
-  --color-card: #fbfaf7;
-  --color-ink: #1b1a17;
-  --color-muted: #6f6b63;
-  --color-hairline: #e4e0d6;
-  --color-accent: #0f766e;
-  --color-accent-soft: #0f766e1a;
+  --color-paper: #f7f7f4;
+  --color-surface: #ffffff;
+  --color-ink: #20201e;
+  --color-muted: #6b6b66;
+  --color-faint: #a1a19b;
+  --color-hairline: #e7e7e2;
+  --color-accent: #5b6d5b;
+  --color-accent-soft: #5b6d5b24;
+  --color-danger: #a03d2e;
 
-  --font-display: "Fraunces Variable", ui-serif, Georgia, serif;
+  --font-display: "Newsreader Variable", ui-serif, Georgia, serif;
   --font-sans: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+
+  /* Only floating things cast a shadow: popovers, dialogs, the tooltip. */
+  --shadow-float: 0 8px 24px -12px rgb(0 0 0 / 0.18);
+  --radius-pop: 10px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-paper: #111210;
+    --color-surface: #181916;
+    --color-ink: #f2f2ee;
+    --color-muted: #9b9c95;
+    --color-faint: #5e5f59;
+    --color-hairline: #292a26;
+    --color-accent: #9db29d;
+    --color-accent-soft: #9db29d2e;
+    --color-danger: #e08a7a;
+    --shadow-float: 0 8px 24px -12px rgb(0 0 0 / 0.6);
+  }
 }
 
 html {
+  color-scheme: light dark;
   background: var(--color-paper);
   color: var(--color-ink);
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
 }
 
-/* Every number lines up. */
-.num {
-  font-variant-numeric: tabular-nums;
-}
-
-/* A faint paper grain under everything, so the page is not a flat fill. */
 body {
   min-height: 100vh;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.1 0 0 0 0 0.1 0 0 0 0 0.08 0 0 0 .045 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
 }
 
-.display-num {
-  font-family: var(--font-display);
-  font-variation-settings: "opsz" 144;
+/* Numbers in lists and stats line up. */
+.num {
   font-variant-numeric: tabular-nums;
-  letter-spacing: -0.02em;
 }
 
 ::selection {
   background: var(--color-accent-soft);
 }
 
-/* In the base layer so a utility (focus-visible:outline-none on the
-   underline inputs, whose border turns accent instead) can override it. */
+/* In the base layer so a utility (focus-visible:outline-none on an input
+   whose border marks focus instead) can override it. */
 @layer base {
   :focus-visible {
     outline: 2px solid var(--color-accent);
@@ -57,14 +73,33 @@ body {
   }
 }
 
-/* The one load animation: header, stats, chart and panels rise in turn;
-   callers set animation-delay in steps of 60 ms. */
-@keyframes rise {
-  from { opacity: 0; transform: translateY(8px); }
+dialog::backdrop {
+  background: rgb(0 0 0 / 0.28);
+}
+
+/* Motion answers a state change, never a page load. */
+
+/* A popover, menu or dialog opening. */
+@keyframes pop {
+  from { opacity: 0; transform: translateY(4px); }
   to { opacity: 1; transform: none; }
 }
-.rise {
-  animation: rise 480ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
+.pop {
+  animation: pop 120ms ease-out both;
+}
+
+/* The chart switching metric. */
+@keyframes fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.fade {
+  animation: fade 150ms ease-out both;
+}
+
+/* The first visit arriving, once. */
+.live {
+  animation: fade 300ms ease-out both;
 }
 
 /* A wrong password shakes the field once. */
@@ -78,7 +113,7 @@ body {
   animation: shake 420ms cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
 }
 
-/* The online dot breathes. */
+/* The online dot breathes while someone is there. */
 @keyframes pulse-ring {
   0% { transform: scale(1); opacity: 0.55; }
   100% { transform: scale(2.6); opacity: 0; }
@@ -93,5 +128,5 @@ body {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .rise, .shake, .pulse::after { animation: none; }
+  .pop, .fade, .live, .shake, .pulse::after { animation: none; }
 }
