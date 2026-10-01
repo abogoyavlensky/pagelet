@@ -48,6 +48,10 @@ jobs:
       - name: Install the dashboard
         run: lgx ui-install
 
+      # The dashboard's wording helpers, under node --test.
+      - name: Dashboard unit tests
+        run: lgx ui-test
+
       # e2e-setup installs the browser without system packages (it runs
       # without sudo on a laptop); the runner adds them.
       - name: Install the browser tests

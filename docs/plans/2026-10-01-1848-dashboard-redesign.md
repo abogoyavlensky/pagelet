@@ -234,7 +234,7 @@ Elsewhere:
 
 Work on a branch: `git switch -c dashboard-redesign` first.
 
-- [ ] **Step 1: Write the failing tests** in `stats_test.lg`, per the Design's "Server additions":
+- [x] **Step 1: Write the failing tests** in `stats_test.lg`, per the Design's "Server additions":
   - Every existing `stats/stats` call gets a fourth argument; use `"2026-09-20T00:00:00"` (after every seeded day, so nothing is cut).
   - `seven-days`: totals become `{:visitors 2 :pageviews 28 :views_per_visitor 14.0 :bounce_rate 0}`; `(:previous s)` is `{:visitors 0 :pageviews 0}`; `(:has_events s)` is true.
   - `an-empty-period`: `:bounce_rate 0`, `:previous {:visitors 0 :pageviews 0}`, `:has_events true`; for site `"nope"` `:has_events` is false.
@@ -242,22 +242,22 @@ Work on a branch: `git switch -c dashboard-redesign` first.
   - A new `the-previous-span` test on the seeded data, period `custom` 2026-09-10 to 2026-09-10: with now `"2026-09-20T00:00:00"` previous is `{:visitors 1 :pageviews 8}` (all of 09-09); with now `"2026-09-10T12:05:00"` it is `{:visitors 1 :pageviews 5}` (09-09 until 12:05); with now `"2026-09-10T11:00:00"` it is `{:visitors 0 :pageviews 0}`.
   - `online-now`: `{:online 1 :pages [{:name "/" :visitors 1}]}` for `s1`, `{:online 0 :pages []}` for `s2`; `(stats/now conn)` matches `\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}`.
 
-- [ ] **Step 2: Run them to see them fail**
+- [x] **Step 2: Run them to see them fail**
   Run: `mise exec -- lgx test`
   Expected: failures in `pagelet.stats-test` (arity, missing keys).
 
-- [ ] **Step 3: Implement in `stats.lg`**: `now`; `:bounce_rate` in `totals` (a subquery grouping events by visitor: a bounce has one event in all and it is a pageview, as defined in the Design); a private `previous-period` returning `{:from :to-exclusive}` and `previous` returning `(select-keys (totals …) [:visitors :pageviews])`; `has-events?`; `:pages` in `realtime`; `stats` gains `now`, `:previous` and `:has_events`. Update the namespace comment to mention them. In `routes.lg` the stats route calls `(stats/stats db (:id site) p (stats/now db))`.
+- [x] **Step 3: Implement in `stats.lg`**: `now`; `:bounce_rate` in `totals` (a subquery grouping events by visitor: a bounce has one event in all and it is a pageview, as defined in the Design); a private `previous-period` returning `{:from :to-exclusive}` and `previous` returning `(select-keys (totals …) [:visitors :pageviews])`; `has-events?`; `:pages` in `realtime`; `stats` gains `now`, `:previous` and `:has_events`. Update the namespace comment to mention them. In `routes.lg` the stats route calls `(stats/stats db (:id site) p (stats/now db))`.
 
-- [ ] **Step 4: Adjust `routes_test.lg`**: in `events-to-stats` the realtime answer becomes `{:online 1 :pages [{:name "/pricing" :visitors 1}]}`; add assertions that the stats JSON has `:has_events true`, `[:totals :bounce_rate]` 100 and `:previous {:visitors 0 :pageviews 0}`.
+- [x] **Step 4: Adjust `routes_test.lg`**: in `events-to-stats` the realtime answer becomes `{:online 1 :pages [{:name "/pricing" :visitors 1}]}`; add assertions that the stats JSON has `:has_events true`, `[:totals :bounce_rate]` 100 and `:previous {:visitors 0 :pageviews 0}`.
 
-- [ ] **Step 5: Run the tests**
+- [x] **Step 5: Run the tests**
   Run: `mise exec -- lgx test`
   Expected: all pass.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
   `git commit -m "Stats: bounce rate, the previous span, has_events, pages online now"`
 
-> Deviation: the `bounces` test has four visitors (the step's "three" was a slip; 1 bounce in 4 is the 25 it expects). `totals` now groups by visitor in a CTE so one query yields both the old numbers and the bounce rate; `pageviews` is cast to `bigint` because DuckDB's `sum` returns a HUGEINT.
+> Deviation: the `bounces` test has four visitors (the step's "three" was a slip; 1 bounce in 4 is the 25 it expects). `totals` now groups by visitor in a CTE so one query yields both the old numbers and the bounce rate; `pageviews` is cast to `bigint` because DuckDB's `sum` returns a HUGEINT. The `Stats` and `Realtime` types in `ui/src/api.ts` moved here from Task 5 Step 1 (AGENTS.md: change both together; Codex's review).
 
 ### Task 2: Sites by domain alone
 
@@ -265,19 +265,19 @@ Work on a branch: `git switch -c dashboard-redesign` first.
 - Modify: `src/pagelet/routes.lg` (`site-input`), `src/pagelet/db.lg` (`sites`)
 - Test: `test/pagelet/routes_test.lg`
 
-- [ ] **Step 1: Change the `sites-crud` test**: `{:domain "ok.com"}` and `{:name "" :domain "ok.com"}` both create a site named after its domain (use distinct domains; 201, `:name` equals `:domain`); a 65-character name is still 400; a `PUT` with only `{:domain "example.net"}` sets the name to `example.net`; the list assertion checks the order of `:domain` values, sorted by domain.
+- [x] **Step 1: Change the `sites-crud` test**: `{:domain "ok.com"}` and `{:name "" :domain "ok.com"}` both create a site named after its domain (use distinct domains; 201, `:name` equals `:domain`); a 65-character name is still 400; a `PUT` with only `{:domain "example.net"}` sets the name to `example.net`; the list assertion checks the order of `:domain` values, sorted by domain.
 
-- [ ] **Step 2: Run to see it fail**
+- [x] **Step 2: Run to see it fail**
   Run: `mise exec -- lgx test`
   Expected: `sites-crud` fails.
 
-- [ ] **Step 3: Implement**: in `site-input`, validate the domain first, then let a blank name become the domain; only a non-blank name is checked for 1–64 characters. Update its docstring and the "Body:" comment on the POST route. `db/sites` orders by `domain`.
+- [x] **Step 3: Implement**: in `site-input`, validate the domain first, then let a blank name become the domain; only a non-blank name is checked for 1–64 characters. Update its docstring and the "Body:" comment on the POST route. `db/sites` orders by `domain`.
 
-- [ ] **Step 4: Run the tests**
+- [x] **Step 4: Run the tests**
   Run: `mise exec -- lgx test`
   Expected: all pass.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
   `git commit -m "Sites: the name defaults to the domain"`
 
 ### Task 3: The Lichen theme
@@ -285,17 +285,17 @@ Work on a branch: `git switch -c dashboard-redesign` first.
 **Files:**
 - Modify: `ui/package.json`, `ui/src/index.css`, `ui/public/favicon.svg`, `ui/src/components/Wordmark.tsx`, `ui/src/components/Snippet.tsx`
 
-- [ ] **Step 1: Fonts**: in `ui/`, `npm uninstall @fontsource-variable/fraunces && npm i @fontsource-variable/newsreader`. Check which stylesheet carries the optical-size axis (`ls node_modules/@fontsource-variable/newsreader/*.css`; expect `opsz.css`) and note the family name it declares (expect `"Newsreader Variable"`).
+- [x] **Step 1: Fonts**: in `ui/`, `npm uninstall @fontsource-variable/fraunces && npm i @fontsource-variable/newsreader`. Check which stylesheet carries the optical-size axis (`ls node_modules/@fontsource-variable/newsreader/*.css`; expect `opsz.css`) and note the family name it declares (expect `"Newsreader Variable"`).
 
-- [ ] **Step 2: `index.css`**: replace the `@theme` block with the Lichen table from the Design (light values; `--color-card` becomes `--color-surface`; add `--color-faint`, `--color-danger`), `--font-display` as Newsreader; a `prefers-color-scheme: dark` block overriding the same variables on `:root`; `color-scheme: light dark` on `html`. Delete the body grain, `.display-num`, `.rise` and its keyframes. Keep `.num`, the focus rule, `.shake`, `.pulse`. Add the popover/dialog open animation (120ms fade, 4px rise), the chart fade (150ms) and the one-time "live" fade (300ms), all inside the reduced-motion opt-out. Update the header comment to name the theme.
+- [x] **Step 2: `index.css`**: replace the `@theme` block with the Lichen table from the Design (light values; `--color-card` becomes `--color-surface`; add `--color-faint`, `--color-danger`), `--font-display` as Newsreader; a `prefers-color-scheme: dark` block overriding the same variables on `:root`; `color-scheme: light dark` on `html`. Delete the body grain, `.display-num`, `.rise` and its keyframes. Keep `.num`, the focus rule, `.shake`, `.pulse`. Add the popover/dialog open animation (120ms fade, 4px rise), the chart fade (150ms) and the one-time "live" fade (300ms), all inside the reduced-motion opt-out. Update the header comment to name the theme.
 
-- [ ] **Step 3: Fix what the token rename breaks**: `bg-card` → `bg-surface` and 8px radius in `Snippet.tsx` (its Copy button becomes ink text, not accent); the wordmark stays "pagelet." in the display face at `text-xl`, its dot in accent; replace `text-red-800` uses with `text-danger` as files are touched in later tasks. Recolour `favicon.svg` (`#F7F7F4` ground, `#5B6D5B` line).
+- [x] **Step 3: Fix what the token rename breaks**: `bg-card` → `bg-surface` and 8px radius in `Snippet.tsx` (its Copy button becomes ink text, not accent); the wordmark stays "pagelet." in the display face at `text-xl`, its dot in accent; replace `text-red-800` uses with `text-danger` as files are touched in later tasks. Recolour `favicon.svg` (`#F7F7F4` ground, `#5B6D5B` line).
 
-- [ ] **Step 4: Build**
+- [x] **Step 4: Build**
   Run: `cd ui && npm run build && npm run lint`
   Expected: both succeed (files that still use `.rise` or `font-display` compile; they are rewritten in later tasks).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
   `git commit -m "Dashboard: the Lichen theme, Newsreader, a dark theme"`
 
 ### Task 4: The copy helpers
@@ -317,24 +317,26 @@ share(part: number, whole: number): string      // "31%", "<1%" for a non-zero s
 
 `comparison` returns `undefined` when `before` is 0. Otherwise, with `pct = Math.round(Math.abs(now − before) / before × 100)`: `"About the same as <ref>."` when `pct` is 0, `"<pct>% more than <ref>."` or `"<pct>% fewer than <ref>."`. `<ref>` is `"by this time yesterday"` for today, `"the 7 days before"`, `"the 30 days before"`, and for custom `"the day before"` or `"the N days before"` (N = inclusive days from `from` to `to`).
 
-- [ ] **Step 1: Write `ui/test/format.test.ts`** with `node:test` and `node:assert/strict`, importing `../src/format.ts`: singular and plural and zero for `people`; every `periodPhrase` and `periodLabel` form; `comparison` for more, fewer, same, no previous, today, custom one day, custom several days; `share` for a round share, `<1%`, zero and a zero whole. Add `"test": "node --test test/"` to `ui/package.json`.
+- [x] **Step 1: Write `ui/test/format.test.ts`** with `node:test` and `node:assert/strict`, importing `../src/format.ts`: singular and plural and zero for `people`; every `periodPhrase` and `periodLabel` form; `comparison` for more, fewer, same, no previous, today, custom one day, custom several days; `share` for a round share, `<1%`, zero and a zero whole. Add `"test": "node --test test/"` to `ui/package.json`.
 
-- [ ] **Step 2: Run to see it fail**
+- [x] **Step 2: Run to see it fail**
   Run: `cd ui && npm test`
   Expected: failures (the functions do not exist).
 
-- [ ] **Step 3: Implement** the functions in `format.ts`.
+- [x] **Step 3: Implement** the functions in `format.ts`.
 
-- [ ] **Step 4: Run**
+- [x] **Step 4: Run**
   Run: `cd ui && npm test && npm run build`
   Expected: tests pass; the build is unaffected.
 
-- [ ] **Step 5: Wire it up**: an `lgx.edn` task `ui-test` (`cd ui && npm test`, with a `:doc`), added to `check` after `lgx:test`; a "Dashboard unit tests" step (`lgx ui-test`) in `.github/workflows/test.yml` after "Unit tests".
+- [x] **Step 5: Wire it up**: an `lgx.edn` task `ui-test` (`cd ui && npm test`, with a `:doc`), added to `check` after `lgx:test`; a "Dashboard unit tests" step (`lgx ui-test`) in `.github/workflows/test.yml` after "Unit tests".
   Run: `mise exec -- lgx ui-test`
   Expected: pass.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
   `git commit -m "Dashboard: the headline's wording as tested functions"`
+
+> Deviation: the test script is `node --test "test/*.test.ts"`; Node 24 treats a bare `test/` argument as a file and fails. The CI step sits after "Install the dashboard" (right after "Unit tests" plus the install), so it runs inside the installed `ui/`.
 
 ### Task 5: Overlays, the top bar, routes and adding a site
 
