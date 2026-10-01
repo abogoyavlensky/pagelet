@@ -33,7 +33,7 @@ function List({ title, testId, columns, items, className = '' }: {
         <p className="rounded-xl bg-paper px-3 py-6 text-center text-sm text-muted">Nothing in this period</p>
       ) : (
         <>
-          <ol className="grid gap-1">
+          <ol className="grid grid-cols-1 gap-1">
             {shown.map((i) => (
               <li key={i.key} className="relative flex h-9 items-center gap-1 text-sm">
                 <span aria-hidden className="absolute inset-y-0 left-0 rounded-lg bg-visitors-soft"

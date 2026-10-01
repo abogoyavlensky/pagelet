@@ -11,9 +11,9 @@ export default function Card({ title, action, children, className = '', testId }
   return (
     <section data-testid={testId} className={`rounded-card border border-hairline bg-surface p-4 sm:p-5 ${className}`}>
       {(title || action) && (
-        <header className="mb-3 flex min-h-8 items-center justify-between gap-3">
+        <header className="mb-3 flex min-h-8 flex-wrap items-center justify-between gap-x-3 gap-y-2">
           {typeof title === 'string' ? <h2 className="text-[15px] font-semibold text-ink">{title}</h2> : title}
-          {action}
+          {action && <div className="ml-auto">{action}</div>}
         </header>
       )}
       {children}

@@ -23,13 +23,17 @@ function Sparkline({ points }: { points: number[] }) {
 
 function SiteCard({ site }: { site: Site }) {
   const [stats, setStats] = useState<Stats>()
+  const [failed, setFailed] = useState<unknown>()
   const [online, setOnline] = useState(0)
+  const [tries, setTries] = useState(0)
+  useSignedOutOn(failed)
   useEffect(() => {
     let live = true
-    api.stats(site.id, { period: '7d' }).then((s) => { if (live) setStats(s) }, () => {})
+    setFailed(undefined)
+    api.stats(site.id, { period: '7d' }).then((s) => { if (live) setStats(s) }, (e) => { if (live) setFailed(e) })
     api.realtime(site.id).then((r) => { if (live) setOnline(r.online) }, () => {})
     return () => { live = false }
-  }, [site.id])
+  }, [site.id, tries])
 
   const t = stats?.totals
   const c = t && change(t.visitors, stats.previous.visitors)
@@ -51,7 +55,15 @@ function SiteCard({ site }: { site: Site }) {
           </span>
         )}
       </div>
-      {stats && !stats.has_events ? (
+      {failed && !stats ? (
+        <p className="mt-6 rounded-xl bg-paper px-3 py-3 text-sm text-danger">
+          Could not load this site's numbers.{' '}
+          <button type="button" onClick={(e) => { e.preventDefault(); setTries((n) => n + 1) }}
+            className="font-medium underline underline-offset-2">
+            Retry
+          </button>
+        </p>
+      ) : stats && !stats.has_events ? (
         <p className="mt-6 rounded-xl bg-paper px-3 py-3 text-sm text-muted">Waiting for the first visit</p>
       ) : (
         <div className="mt-5 flex items-end justify-between gap-4">

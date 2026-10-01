@@ -36,7 +36,7 @@ export default function LiveCard({ siteId, className = '' }: { siteId: string; c
         <span className="ml-2 text-sm text-muted">{n === 1 ? 'person online' : 'people online'}</span>
       </p>
       {now && now.pages.length > 0 ? (
-        <ul className="mt-4 grid gap-1">
+        <ul className="mt-4 grid grid-cols-1 gap-1">
           {now.pages.map((p) => (
             <li key={p.name} className="flex items-center justify-between gap-4 rounded-lg bg-paper px-2.5 py-1.5 text-sm">
               <span className="truncate text-ink" title={p.name}>{p.name}</span>
