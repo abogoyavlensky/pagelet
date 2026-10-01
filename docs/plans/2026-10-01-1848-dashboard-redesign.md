@@ -1,6 +1,6 @@
 # Dashboard Redesign Implementation Plan
 
-**Status: completed 2026-10-01** on branch `dashboard-redesign`.
+**Status: completed 2026-10-01** on branch `dashboard-redesign`. Its server work stands; its UI (the Lichen theme) was rejected and replaced by docs/plans/2026-10-01-2302-dashboard-bento.md.
 
 > **For agentic workers:** Use executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 

@@ -15,7 +15,7 @@ claim goes stale, fix or delete it: a missing note beats a wrong one.
 | `github.com/mileusna/useragent` | v1.3.5 | user agent parsing, generated bindings (`:go/interop`) |
 | integrant, ruuter | 1.0.1, v2.1.1 | components, routing |
 | React, react-router, Recharts | 19, 7.18, 3 | the dashboard in `ui/` (Vite 8, TypeScript 6, Tailwind 4) |
-| Newsreader, IBM Plex Sans | fontsource 5.3 | the dashboard's fonts, shipped as files in the binary |
+| Onest | fontsource 5.3 | the dashboard's font, shipped as files in the binary |
 | @playwright/test | 1.56.0 | browser tests in `e2e/`, on `chromium_headless_shell-1194` |
 
 ## The useragent bindings (2026-09-30)
@@ -126,6 +126,12 @@ Variable", weights 200-800 with the optical-size axis). Its three woff2
 files (latin, latin-ext, vietnamese) came back from the binary byte for
 byte as `font/woff2`, and Chromium loaded "Newsreader Variable" and Plex
 400/500.
+
+Later the same day the bento redesign replaced both with Onest
+(`@fontsource-variable/onest/wght.css`, family "Onest Variable", weights
+100-900; it has true tabular figures, checked by measuring `1111` against
+`0000` with `tabular-nums`). Its seven woff2 files came back from the
+binary byte for byte as `font/woff2`, and Chromium loaded it.
 
 ## The redesigned dashboard (2026-10-01)
 
