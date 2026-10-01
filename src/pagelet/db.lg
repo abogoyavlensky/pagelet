@@ -48,10 +48,10 @@
 (def execute-one! duckdb/execute-one!)
 
 (defn sites
-  "Every site, ordered by name."
+  "Every site, ordered by domain."
   [conn]
   (query conn ["select id, name, domain, strftime(created_at, '%Y-%m-%dT%H:%M:%S') as created_at
-                from sites order by name, domain"]))
+                from sites order by domain"]))
 
 (defn sites-by-domain
   "Every site keyed by its domain: the ingest's lookup table."

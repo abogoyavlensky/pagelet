@@ -107,16 +107,19 @@
 
 (defn- site-input
   "{:name :domain} from a request body, trimmed and the domain lower-cased,
-   or {:error message}."
+   or {:error message}. A missing or blank name is the domain: the
+   dashboard shows sites by domain and sends only that."
   [body]
   (let [name (str/trim (str (:name body)))
         domain (str/lower-case (str/trim (str (:domain body))))]
     (cond
-      (not (<= 1 (count name) 64))
-      {:error "The name must be 1-64 characters."}
-
       (not (and (<= 1 (count domain) 253) (re-matches domain-re domain)))
       {:error "The domain must be a hostname like example.com, without a scheme, path or port."}
+
+      (str/blank? name) {:name domain :domain domain}
+
+      (> (count name) 64)
+      {:error "The name must be 1-64 characters."}
 
       :else {:name name :domain domain})))
 
@@ -229,7 +232,7 @@
       :method :get
       :response (protected (fn [_] (json-response 200 (db/sites db))))}
 
-     ;; Body: {"name": "...", "domain": "..."}.
+     ;; Body: {"domain": "..."}, and optionally "name" (the domain if blank).
      {:path "/api/sites"
       :method :post
       :response (protected
