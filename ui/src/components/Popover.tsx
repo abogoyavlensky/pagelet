@@ -18,6 +18,7 @@ export default function Popover({
   className = '',
   testId,
   onOpen,
+  wrapperClassName = '',
 }: {
   label: string
   trigger: ReactNode
@@ -27,6 +28,8 @@ export default function Popover({
   className?: string
   testId?: string
   onOpen?: () => void
+  /** Classes for the box around button and panel, for sizing it in a flex row. */
+  wrapperClassName?: string
 }) {
   const [open, setOpen] = useState(false)
   const wrapper = useRef<HTMLDivElement>(null)
@@ -77,7 +80,7 @@ export default function Popover({
   }
 
   return (
-    <div ref={wrapper} className="relative">
+    <div ref={wrapper} className={`relative ${wrapperClassName}`}>
       <button ref={button} type="button" aria-label={label} aria-haspopup={role} aria-expanded={open}
         aria-controls={open ? id : undefined} data-testid={testId}
         onClick={() => { if (!open) onOpen?.(); setOpen(!open) }}

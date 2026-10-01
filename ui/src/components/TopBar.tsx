@@ -8,8 +8,8 @@ import Wordmark from './Wordmark'
 /**
  * One bar across the top, the way analytics apps do it: the logo (to all
  * websites), the current site as a button that switches sites, then the
- * period, settings and sign-out. On a phone the period gets its own
- * full-width row under it.
+ * period, settings and sign-out. On a phone the site button takes the free
+ * width and the period gets its own full-width row under it.
  */
 export default function TopBar({ sites, site, period, onPeriod, live, onSaved }: {
   sites?: Site[]
@@ -29,11 +29,11 @@ export default function TopBar({ sites, site, period, onPeriod, live, onSaved }:
         </Link>
         {sites && site && (
           <>
-            <span aria-hidden className="text-faint">/</span>
-            <SiteSwitcher sites={sites} current={site} />
+            <span aria-hidden className="hidden text-faint sm:inline">/</span>
+            <SiteSwitcher sites={sites} current={site} className="flex min-w-0 flex-1 sm:flex-none" />
           </>
         )}
-        <div className="ml-auto flex items-center gap-2">
+        <div className="ml-auto flex shrink-0 items-center gap-1 md:gap-2">
           {showPeriod && <PeriodControl key={key} value={period} onChange={onPeriod} className="hidden md:flex" />}
           {site && <SettingsButton site={site} onSaved={onSaved} />}
           <SignOutButton />
