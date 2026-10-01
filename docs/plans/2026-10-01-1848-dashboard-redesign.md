@@ -412,7 +412,7 @@ Read `/dataviz` before changing the chart.
 **Files:**
 - Modify: `e2e/tests/dashboard.spec.js` (and `e2e/tests/helpers.js` only if a helper no longer fits)
 
-- [ ] **Step 1: Rewrite the dashboard spec** as one flow, keeping its comments' style:
+- [x] **Step 1: Rewrite the dashboard spec** as one flow, keeping its comments' style:
   1. Wrong password says "Wrong password" and stays; the right one leaves `/login`.
   2. `page.goto('/sites/new')`, fill `#site-domain`, click "Add website"; the URL becomes `/sites/<12 hex>`; `getByTestId('waiting')` is visible and contains the script tag.
   3. Post three pageviews as now (`/`, `/pricing`, `/docs`, `z: 'Europe/Amsterdam'`); "You're live" appears within 20s; click "View dashboard".
@@ -422,11 +422,11 @@ Read `/dataviz` before changing the chart.
   7. Open "Period", choose "Last 30 days": the URL has `period=30d`, the stats response for it arrives, the headline reads "… in the last 30 days."
   8. "Site actions" → "Site settings": "Delete site" is disabled until the domain is typed; after the click, wait for the `GET /api/sites` answer and assert the domain is not in it, and the URL is no longer the site's.
 
-- [ ] **Step 2: Run**
+- [x] **Step 2: Run**
   Run: `mise exec -- lgx e2e`
   Expected: both specs pass (the tracker spec is untouched and creates its site through the API with a name, which the server still accepts).
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
   `git commit -m "Browser tests for the redesigned dashboard"`
 
 ### Task 9: A visual pass
