@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useId, useRef, useState, type ReactNode } from 'react'
+import { createContext, useContext, useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { Link } from 'react-router'
 
 const CloseContext = createContext<() => void>(() => {})
@@ -33,7 +33,18 @@ export default function Popover({
   const button = useRef<HTMLButtonElement>(null)
   const panel = useRef<HTMLDivElement>(null)
   const id = useId()
+  const [shift, setShift] = useState(0)
   const close = () => setOpen(false)
+
+  // On a narrow screen the trigger's row wraps, so a panel aligned to it
+  // can stick out of the viewport; nudge it back inside, 8px from the edge.
+  useLayoutEffect(() => {
+    if (!open || !panel.current) { setShift(0); return }
+    const { left, right } = panel.current.getBoundingClientRect()
+    const edge = 8
+    if (left < edge) setShift(edge - left)
+    else if (right > window.innerWidth - edge) setShift(window.innerWidth - edge - right)
+  }, [open])
 
   useEffect(() => {
     if (!open) return
@@ -75,7 +86,8 @@ export default function Popover({
       </button>
       {open && (
         <div ref={panel} id={id} role={role} aria-label={label} onKeyDown={onArrows}
-          className={`pop absolute top-full z-20 mt-2 min-w-56 rounded-pop border border-hairline bg-surface p-1.5 text-sm shadow-float ${
+          style={shift ? { translate: `${shift}px 0` } : undefined}
+          className={`pop absolute top-full z-20 mt-2 max-w-[calc(100vw-1rem)] min-w-56 rounded-pop border border-hairline bg-surface p-1.5 text-sm shadow-float ${
             align === 'right' ? 'right-0' : 'left-0'
           }`}>
           <CloseContext.Provider value={close}>

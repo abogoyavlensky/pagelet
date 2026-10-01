@@ -1,4 +1,4 @@
-import { BrowserRouter, Navigate, Outlet, Route, Routes } from 'react-router'
+import { BrowserRouter, Navigate, Outlet, Route, Routes, useParams } from 'react-router'
 import { api, ApiError, useApi } from './api'
 import AddSite from './pages/AddSite'
 import Login from './pages/Login'
@@ -36,6 +36,17 @@ function Home() {
   return <Navigate to={`/sites/${site.id}`} replace />
 }
 
+/**
+ * A site's dashboard, fresh for each site: nothing from the site switched
+ * away from (its report, who was online) can show under the new domain.
+ * Within one site the page stays, so a period switch keeps the last report
+ * on screen while the next one loads.
+ */
+function SitePage() {
+  const { id } = useParams()
+  return <Site key={id} />
+}
+
 export default function App() {
   return (
     <SessionProvider>
@@ -45,7 +56,7 @@ export default function App() {
           <Route element={<Guarded />}>
             <Route path="/" element={<Home />} />
             <Route path="/sites/new" element={<AddSite />} />
-            <Route path="/sites/:id" element={<Site />} />
+            <Route path="/sites/:id" element={<SitePage />} />
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
