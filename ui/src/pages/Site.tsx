@@ -127,10 +127,10 @@ function Body({ report, metric, onMetric, dim }: {
   return (
     <div className={fade}>
       <Headline stats={stats} period={period} metric={metric} onMetric={onMetric} />
-      <div className="mt-14">
+      <div className="mt-12">
         <Timeseries data={stats.timeseries} metric={metric} />
       </div>
-      <div className="mt-16 grid gap-x-16 gap-y-12 min-[720px]:grid-cols-2">
+      <div className="mt-14 grid gap-x-16 gap-y-10 min-[720px]:grid-cols-2">
         <Breakdown title="Pages" testId="pages" rows={stats.pages} />
         <Breakdown title="Sources" testId="sources" rows={stats.referrers} />
         <Breakdown title="Countries" testId="countries" rows={stats.countries} totals={totals} label={country} />

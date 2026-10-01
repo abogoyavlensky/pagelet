@@ -22,7 +22,7 @@ export default function TopBar({ sites, site, period, onPeriod, live, onSaved }:
 }) {
   const key = period && (period.period === 'custom' ? `custom:${period.from}:${period.to}` : period.period)
   return (
-    <header className="pt-8 pb-12 sm:pb-14">
+    <header className="pt-8 pb-10 sm:pb-12">
       <Link to="/" aria-label="pagelet, home" className="inline-block">
         <Wordmark />
       </Link>

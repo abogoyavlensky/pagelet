@@ -42,14 +42,13 @@ function Readout({ active, payload, metric }: {
 }
 
 export default function Timeseries({ data, metric }: { data: Stats['timeseries']; metric: Metric }) {
-  const every = data.length > 16 ? Math.ceil(data.length / 8) - 1 : data.length > 8 ? 1 : 0
   return (
     <figure>
       <figcaption className="sr-only">{metric === 'visitors' ? 'Visitors' : 'Pageviews'} over the period</figcaption>
       <div key={metric} className="fade h-60" aria-hidden>
         <ResponsiveContainer width="100%" height="100%">
           <LineChart data={data} margin={{ top: 8, right: 12, bottom: 0, left: 0 }}>
-            <XAxis dataKey="t" tickFormatter={tick} interval={every} tickLine={false}
+            <XAxis dataKey="t" tickFormatter={tick} interval="preserveStartEnd" minTickGap={32} tickLine={false}
               axisLine={{ stroke: HAIRLINE }} tick={{ fill: MUTED, fontSize: 12 }} dy={8} />
             <YAxis allowDecimals={false} tickCount={3} tickLine={false} axisLine={false} width={40}
               tick={{ fill: MUTED, fontSize: 12 }} tickFormatter={(v: number) => count(v)} />

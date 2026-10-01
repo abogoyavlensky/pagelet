@@ -2,18 +2,18 @@ import { useState, type ReactNode } from 'react'
 import type { EventRow, Row } from '../api'
 import { count, share } from '../format'
 
-const SHOWN = 6
+const SHOWN = 5
 
 type Unit = 'visitors' | 'pageviews'
 
 /**
- * A top list in the open: no box, a title, then one row per entry with the
- * entry's number and a thin accent rule as long as its share of the
- * longest. The unit word in the header switches the number between
+ * A top list in the open: no box and no row borders, a title, then one row
+ * per entry with the entry's number over a thin accent rule as long as its
+ * share of the longest; the rules are the list's only lines. The unit word in the header switches the number between
  * visitors and views; the order stays the server's (the top ten by
  * visitors), since re-ranking those ten by views would pass for a top ten
  * by views that it is not. Share lists (countries, devices) also show each
- * entry's percentage of the period's total. Six rows, then "Show N more".
+ * entry's percentage of the period's total. Five rows, then "Show N more".
  */
 export default function Breakdown({ title, testId, rows, totals, label = (n) => n }: {
   title: ReactNode
@@ -88,10 +88,10 @@ function List({ title, testId, head, items }: {
         <>
           <ol>
             {shown.map((i) => (
-              <li key={i.key} className="relative flex items-baseline gap-6 border-b border-hairline py-2 text-sm">
+              <li key={i.key} className="relative flex items-baseline gap-6 pt-1.5 pb-2 text-sm">
                 <span className="min-w-0 flex-1 truncate text-ink" title={i.name}>{i.name}</span>
                 {i.cells}
-                <span aria-hidden className="absolute -bottom-px left-0 h-0.5 rounded-full bg-accent/45"
+                <span aria-hidden className="absolute bottom-0 left-0 h-0.5 rounded-full bg-accent/45"
                   style={{ width: `${(i.value / max) * 100}%` }} />
               </li>
             ))}

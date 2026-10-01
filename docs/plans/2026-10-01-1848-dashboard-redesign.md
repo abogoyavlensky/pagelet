@@ -433,18 +433,20 @@ Read `/dataviz` before changing the chart.
 
 **Files:** whatever the pass finds, in `ui/src/`.
 
-- [ ] **Step 1: Seed and look.** With the server stopped, backfill about 30 days of events for one site into a scratch database with a throwaway script (several pages, referrers, countries, devices, browsers, one custom event; do not commit the script), then run the built binary and take screenshots with headless Chromium: the dashboard at 1280px in light and dark (`colorScheme` in Playwright), at 390px, each open overlay, the waiting state, "You're live", the "Nobody visited" state, the add page and sign-in.
+- [x] **Step 1: Seed and look.** With the server stopped, backfill about 30 days of events for one site into a scratch database with a throwaway script (several pages, referrers, countries, devices, browsers, one custom event; do not commit the script), then run the built binary and take screenshots with headless Chromium: the dashboard at 1280px in light and dark (`colorScheme` in Playwright), at 390px, each open overlay, the waiting state, "You're live", the "Nobody visited" state, the add page and sign-in.
 
-- [ ] **Step 2: Critique against the brief and `/frontend-design`.** Check: the headline is the only large thing; the page is about 1–1.5 screens at 1280×800; no section sits in a box; the accent appears only where the Design lists it; no uppercase labels; text contrast holds in both schemes; focus rings are visible on every control; nothing animates on load. Remove one thing that does not earn its place. Fix what is off and rerun `cd ui && npm run build && npm run lint && npm test`.
+- [x] **Step 2: Critique against the brief and `/frontend-design`.** Check: the headline is the only large thing; the page is about 1–1.5 screens at 1280×800; no section sits in a box; the accent appears only where the Design lists it; no uppercase labels; text contrast holds in both schemes; focus rings are visible on every control; nothing animates on load. Remove one thing that does not earn its place. Fix what is off and rerun `cd ui && npm run build && npm run lint && npm test`.
 
-- [ ] **Step 3: Fonts through the binary.** Repeat the KNOWLEDGE check for the new font: for each Newsreader file in `resources/public/app/`, `curl -s localhost:<port>/app/<file> | cmp - resources/public/app/<file>` prints nothing, and the page's computed headline font is Newsreader.
+- [x] **Step 3: Fonts through the binary.** Repeat the KNOWLEDGE check for the new font: for each Newsreader file in `resources/public/app/`, `curl -s localhost:<port>/app/<file> | cmp - resources/public/app/<file>` prints nothing, and the page's computed headline font is Newsreader.
 
-- [ ] **Step 4: Run everything**
+- [x] **Step 4: Run everything**
   Run: `mise exec -- lgx check`
   Expected: unit, dashboard and browser tests pass.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
   `git commit -m "Dashboard: fixes from the visual pass"` (skip if the pass changed nothing)
+
+> Deviation: the seed was a throwaway `lgx run` script writing 30 days of events straight into a scratch DuckDB file (no DuckDB CLI on the box). What the pass changed: list rows lost their hairline borders, so each row's share rule is its only line (the "one accessory"); lists show five rows, not six; the x axis thins its own labels (`interval="preserveStartEnd"`, `minTickGap`), since the fixed rule overlapped at 390px; gaps tightened, bringing the 30-day demo page from 1,514 to 1,367px at 1280×800 (about 1.7 screens with an Events list, 1.6 without). Checked and kept: contrast in both schemes, focus rings on every control, the accent only where the Design lists it (plus the share rules and the pressed metric's underline, which the Design also names), no uppercase labels, nothing animating on load. Fonts: each Newsreader woff2 comes back from the binary byte for byte as `font/woff2`, and the headline's computed face is "Newsreader Variable". `lgx check`: 43 server tests, 5 dashboard tests and both browser specs pass.
 
 ### Task 10: Docs
 
