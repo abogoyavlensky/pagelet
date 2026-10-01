@@ -1,5 +1,7 @@
 # Dashboard Redesign Implementation Plan
 
+**Status: completed 2026-10-01** on branch `dashboard-redesign`.
+
 > **For agentic workers:** Use executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Rebuild the dashboard as one calm page per site (a sentence for a headline, one quiet line chart, four open breakdowns, everything else behind small overlays), with the four small stats additions that page needs.
@@ -459,3 +461,37 @@ Read `/dataviz` before changing the chart.
 
 - [x] **Step 3: Commit**
   `git commit -m "docs: the redesigned dashboard"`
+
+---
+
+## Completion summary
+
+All ten tasks shipped on `dashboard-redesign`, each followed by a Codex review. The final `lgx check` passes (43 server tests with 235 assertions, 5 dashboard tests, both browser specs), lint shows only the two warnings `session.tsx` already had, and a headless walk-through of the built binary on a fresh database passed every check: add by domain, switcher with who is online, periods including a custom range and Back, menus by keyboard, Escape and outside click, online popover, tracking code, settings, "/" reopening the last site, sign-out.
+
+What was built: the stats additions (bounce rate, the previous span cut like-for-like, `has_events`, pages online now); sites named after their domain; the Lichen theme with Newsreader and a system dark theme; the headline wording as tested functions (`lgx ui-test`, in CI and `lgx check`); a top bar of small menus and dialogs in place of the sites page; the sentence headline, quiet line chart, open lists switchable between visitors and views, and the waiting / "You're live" state; the sign-in page; rewritten browser tests; a visual pass; docs.
+
+Issues found and fixed along the way (from Codex reviews unless noted):
+- `ui/src/api.ts` types moved into Task 1, since AGENTS.md has both sides change together.
+- Menus could open off-screen on phones; `Popover` now nudges its panel inside the viewport.
+- A failed site switch could show the previous site's numbers; the page is now keyed on the site id.
+- Re-ranking a list by views over the server's top ten by visitors was misleading; lists keep the server's order.
+- The waiting screen swallowed a 401; it now signs out.
+- The sign-in field had no focus treatment in its error state; it now has a ring.
+- A browser-test assertion could not fail (the URL already carried a query); it now checks the path.
+- Found myself: the wordmark's size could not be overridden; the x axis overlapped at 390px; the page was about 1.9 screens tall.
+
+Deviations, gathered from the task notes:
+- **Task 1:** the bounce test has four visitors, not three. `pageviews` is cast to `bigint`. The API types landed here.
+- **Task 4:** the test script is `node --test "test/*.test.ts"`. The CI step runs after the dashboard install.
+- **Task 5:** `Popover.tsx` also exports `MenuItem` (with `keepOpen`), `MenuDivider` and `Chevron`. Trigger names include the current value. The custom range has a "Back". `LAST_SITE` lives in `session.tsx`.
+- **Task 6:** the headline has `data-testid="headline"` and balanced wrapping. `Breakdown.tsx` exports `Events`. Lists keep the server's order. `Waiting` is generic over `{stats, period}`. `var()` works in Recharts' SVG attributes. `/dataviz`'s categorical-only checks were waived for the brief's muted accent and serif hero number.
+- **Task 7:** `Wordmark` takes its size from `className`.
+- **Task 9:** seeded with a throwaway `lgx run` script. Changes from the pass: no row hairlines, five rows per list, self-thinning x axis, tighter gaps (1,514 → 1,367 px at 1280×800).
+
+Left as is, for a later look:
+- A comparison with a near-empty earlier span reads "5169% more than the 30 days before". It is accurate, but loud for a site's first month.
+- A brand-new site's top bar shows the period and online controls for a moment until its first stats answer arrives. Hiding them until then would make them flicker on every site switch instead.
+- The 30-day page is about 1.6–1.7 screens at 1280×800, slightly over the brief's 1.5.
+
+What the plan could have specified better: the order in which a list switched to views should rank its rows (and that the server only sends a top ten by visitors), and the test ids every browser-test step reads (`headline` was used but never assigned).
+
