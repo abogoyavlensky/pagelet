@@ -12,7 +12,7 @@ export default function Login() {
   const [shakes, setShakes] = useState(0)
   const [busy, setBusy] = useState(false)
 
-  if (state === 'in') return <Navigate to="/sites" replace />
+  if (state === 'in') return <Navigate to="/" replace />
 
   const submit = async (e: FormEvent) => {
     e.preventDefault()
@@ -20,7 +20,7 @@ export default function Login() {
     try {
       await api.login(password)
       setState('in')
-      navigate('/sites')
+      navigate('/')
     } catch (err) {
       setError(err instanceof ApiError && err.status === 401 ? 'Wrong password' : 'Could not sign in')
       setShakes((n) => n + 1)
@@ -51,10 +51,10 @@ export default function Login() {
           aria-invalid={!!error}
           aria-describedby={error ? 'login-error' : undefined}
           className={`mt-2 block w-full border-b bg-transparent py-2 text-lg outline-none focus-visible:outline-none transition-colors focus:border-accent ${
-            error ? 'border-red-700/60' : 'border-hairline'
+            error ? 'border-danger' : 'border-hairline'
           } ${shakes > 0 ? 'shake' : ''}`}
         />
-        <p id="login-error" role="alert" className="mt-2 h-5 text-sm text-red-800">
+        <p id="login-error" role="alert" className="mt-2 h-5 text-sm text-danger">
           {error}
         </p>
         <button

@@ -1,59 +1,39 @@
-import { BrowserRouter, Link, Navigate, Outlet, Route, Routes, useNavigate } from 'react-router'
-import { useState } from 'react'
-import { api, ApiError } from './api'
-import Wordmark from './components/Wordmark'
+import { BrowserRouter, Navigate, Outlet, Route, Routes } from 'react-router'
+import { api, ApiError, useApi } from './api'
+import AddSite from './pages/AddSite'
 import Login from './pages/Login'
 import Site from './pages/Site'
-import Sites from './pages/Sites'
-import { SessionProvider, useSession } from './session'
+import { LAST_SITE, SessionProvider, useSession, useSignedOutOn } from './session'
 
-function TopBar() {
-  const { setState } = useSession()
-  const navigate = useNavigate()
-  const [failed, setFailed] = useState(false)
-  // Signed out only once the server says so: a failed request leaves the
-  // session cookie valid, so pretending otherwise would sign back in on
-  // reload. A 401 means the session was already gone.
-  const signOut = async () => {
-    try {
-      await api.logout()
-    } catch (err) {
-      if (!(err instanceof ApiError && err.status === 401)) {
-        setFailed(true)
-        return
-      }
-    }
-    setState('out')
-    navigate('/login')
-  }
-  return (
-    <header className="mx-auto flex max-w-[1080px] items-baseline justify-between px-6 pt-8 pb-6">
-      <Link to="/sites" aria-label="pagelet, all sites">
-        <Wordmark />
-      </Link>
-      <span className="flex items-baseline gap-3 text-sm">
-        {failed && <span role="alert" className="text-red-800">Could not sign out. Try again.</span>}
-        <button onClick={signOut} className="text-muted transition-colors hover:text-ink">
-          Sign out
-        </button>
-      </span>
-    </header>
-  )
-}
-
-/** The signed-in screens: a top bar over the page, or off to /login. */
+/** The signed-in screens, in one centred column, or off to /login. */
 function Guarded() {
   const { state } = useSession()
   if (state === 'checking') return null
   if (state === 'out') return <Navigate to="/login" replace />
   return (
-    <>
-      <TopBar />
-      <main className="mx-auto max-w-[1080px] px-6 pb-24">
-        <Outlet />
-      </main>
-    </>
+    <main className="mx-auto max-w-[1000px] px-6 pb-24">
+      <Outlet />
+    </main>
   )
+}
+
+/** "/": the site looked at last, else the first one, else adding one. */
+function Home() {
+  const sites = useApi(() => api.sites(), [])
+  useSignedOutOn(sites.error)
+  if (sites.error && !(sites.error instanceof ApiError && sites.error.status === 401)) {
+    return (
+      <p role="alert" className="py-16 text-sm text-danger">
+        Could not load the sites.{' '}
+        <button onClick={sites.reload} className="underline underline-offset-2">Retry</button>
+      </p>
+    )
+  }
+  if (!sites.data) return null
+  if (sites.data.length === 0) return <Navigate to="/sites/new" replace />
+  const last = localStorage.getItem(LAST_SITE)
+  const site = sites.data.find((s) => s.id === last) ?? sites.data[0]
+  return <Navigate to={`/sites/${site.id}`} replace />
 }
 
 export default function App() {
@@ -63,10 +43,11 @@ export default function App() {
         <Routes>
           <Route path="/login" element={<Login />} />
           <Route element={<Guarded />}>
-            <Route path="/sites" element={<Sites />} />
+            <Route path="/" element={<Home />} />
+            <Route path="/sites/new" element={<AddSite />} />
             <Route path="/sites/:id" element={<Site />} />
           </Route>
-          <Route path="*" element={<Navigate to="/sites" replace />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </BrowserRouter>
     </SessionProvider>

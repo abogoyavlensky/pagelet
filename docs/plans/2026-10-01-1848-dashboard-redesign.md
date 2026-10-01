@@ -347,21 +347,23 @@ share(part: number, whole: number): string      // "31%", "<1%" for a non-zero s
 
 Read `/frontend-design` before writing components. Everything here follows the Design's "Top bar and overlays" and "Sites, names and routes"; the labels and `aria-label`s there are exact, since Task 8's tests use them.
 
-- [ ] **Step 1: `api.ts`**: the `Stats` and realtime types from the Design; `createSite(domain)` and `updateSite(id, domain)` send only `{domain}`. Keep the header comment's "change both together".
+- [x] **Step 1: `api.ts`**: the `Stats` and realtime types from the Design; `createSite(domain)` and `updateSite(id, domain)` send only `{domain}`. Keep the header comment's "change both together".
 
-- [ ] **Step 2: `Popover` and `Dialog`** as the Design describes. `Popover` props: the trigger's content and `aria-label`, an alignment (`left` | `right`), and children as a render function receiving `close`. `Dialog` props: `open`, `onClose`, `title`, children.
+- [x] **Step 2: `Popover` and `Dialog`** as the Design describes. `Popover` props: the trigger's content and `aria-label`, an alignment (`left` | `right`), and children as a render function receiving `close`. `Dialog` props: `open`, `onClose`, `title`, children.
 
-- [ ] **Step 3: `SiteSwitcher`, `PeriodMenu`, `ActionsMenu`, `OnlineNow`, `TopBar`**. `PeriodMenu` takes over `PeriodPicker`'s custom-range state and validation (from ≤ to). `ActionsMenu` holds the tracking-code dialog (uses `Snippet`) and the settings dialog (domain form with the server's error shown; the delete block moves here from `Site.tsx:159-193`; after a delete, navigate to `/`; after a save, reload the sites). Sign-out keeps the behaviour and comment at `App.tsx:14-28` (signed out only once the server says so). `TopBar` takes optional site props, so `AddSite` can render it with the wordmark and sign-out only.
+- [x] **Step 3: `SiteSwitcher`, `PeriodMenu`, `ActionsMenu`, `OnlineNow`, `TopBar`**. `PeriodMenu` takes over `PeriodPicker`'s custom-range state and validation (from ≤ to). `ActionsMenu` holds the tracking-code dialog (uses `Snippet`) and the settings dialog (domain form with the server's error shown; the delete block moves here from `Site.tsx:159-193`; after a delete, navigate to `/`; after a save, reload the sites). Sign-out keeps the behaviour and comment at `App.tsx:14-28` (signed out only once the server says so). `TopBar` takes optional site props, so `AddSite` can render it with the wordmark and sign-out only.
 
-- [ ] **Step 4: Routes**: `App.tsx` gets `Home` and the route table from the Design; the guarded layout keeps the `max-w-[1000px]` column and no longer renders a bar itself. `AddSite.tsx` per the Design. `Site.tsx` renders `TopBar` in place of its header, panels and period row, stores the last-site key, and keeps rendering the old report body for now (Task 6 replaces it); remove `.rise` uses in files touched. `Login.tsx` navigates to `/`.
+- [x] **Step 4: Routes**: `App.tsx` gets `Home` and the route table from the Design; the guarded layout keeps the `max-w-[1000px]` column and no longer renders a bar itself. `AddSite.tsx` per the Design. `Site.tsx` renders `TopBar` in place of its header, panels and period row, stores the last-site key, and keeps rendering the old report body for now (Task 6 replaces it); remove `.rise` uses in files touched. `Login.tsx` navigates to `/`.
 
-- [ ] **Step 5: Build and try it**
+- [x] **Step 5: Build and try it**
   Run: `cd ui && npm run build && npm run lint`
   Expected: both succeed, with no unused files left importing deleted ones.
   Then run `mise exec -- lgx run` and `mise exec -- lgx ui-dev`, sign in (`admin` in development) and walk through: add a site by domain, switch sites, each period option including a custom range and Back/Forward, the tracking-code and settings dialogs, Escape and outside-click on every overlay, keyboard-only use of each menu, sign out.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
   `git commit -m "Dashboard: a top bar of small menus in place of the sites page"`
+
+> Deviation: `Popover.tsx` also exports `MenuItem` (link or button; closes the menu unless `keepOpen`), `MenuDivider` and `Chevron`, so every menu shares one item style. The trigger names carry the current value ("Switch website, one.test", "Period, Last 7 days") so the accessible name contains the visible text; tests match them by substring. The custom range has a "Back" to the presets. `LAST_SITE` lives in `session.tsx` (exporting it from a page would add a fast-refresh lint warning). The walk-through ran headless against the built binary: every Step 5 flow passed. Playwright scrolls a menu item that is still in its 120ms open animation before clicking it, so a test that clicks at once may see the page scrolled; a person cannot.
 
 ### Task 6: The dashboard body
 

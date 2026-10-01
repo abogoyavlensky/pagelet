@@ -77,10 +77,9 @@ export const api = {
   logout: () => request<{ ok: true }>('POST', '/api/logout'),
   me: () => request<{ ok: true }>('GET', '/api/me'),
   sites: () => request<Site[]>('GET', '/api/sites'),
-  createSite: (name: string, domain: string) =>
-    request<Site>('POST', '/api/sites', { name, domain }),
-  updateSite: (id: string, name: string, domain: string) =>
-    request<Site>('PUT', `/api/sites/${id}`, { name, domain }),
+  // The dashboard knows sites by domain; the server names them after it.
+  createSite: (domain: string) => request<Site>('POST', '/api/sites', { domain }),
+  updateSite: (id: string, domain: string) => request<Site>('PUT', `/api/sites/${id}`, { domain }),
   deleteSite: (id: string) => request<{ ok: true }>('DELETE', `/api/sites/${id}`),
   stats: (id: string, p: Period) =>
     request<Stats>('GET', `/api/sites/${id}/stats?${periodQuery(p)}`),
