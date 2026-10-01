@@ -1,44 +1,82 @@
 @import "tailwindcss";
-@import "@fontsource-variable/newsreader/opsz.css";
-@import "@fontsource/ibm-plex-sans/latin-400.css";
-@import "@fontsource/ibm-plex-sans/latin-500.css";
+@import "@fontsource-variable/onest/wght.css";
 
-/* Lichen: a warm, quiet light theme with a sage accent, and a dark one that
-   follows the system. Tailwind exposes each token as a utility (bg-paper,
-   bg-surface, text-ink, text-muted, border-hairline, text-accent, ...).
-   The accent marks only the chart line, the online dot, the "You're live"
-   check and focus; buttons and links are ink. */
+/* Soft bento: a cool gray canvas, white cards with a hairline and no
+   shadow, one readable sans. Each metric has its own soft colour (a tint
+   for its card, a strong tone for its line and dot, a deep tone for text on
+   the tint); the chart wears the colour of the metric it plots. */
 @theme {
-  --color-paper: #f7f7f4;
+  --color-paper: #f2f3f7;
   --color-surface: #ffffff;
-  --color-ink: #20201e;
-  --color-muted: #6b6b66;
-  --color-faint: #a1a19b;
-  --color-hairline: #e7e7e2;
-  --color-accent: #5b6d5b;
-  --color-accent-soft: #5b6d5b24;
-  --color-danger: #a03d2e;
+  --color-ink: #16181d;
+  --color-muted: #5d6270;
+  --color-faint: #9aa0ad;
+  --color-hairline: #e4e6ec;
+  --color-track: #e9ebf1;
+  --color-accent: #3b6fe0;
+  --color-accent-soft: #e9f0ff;
+  --color-danger: #c63a2b;
 
-  --font-display: "Newsreader Variable", ui-serif, Georgia, serif;
-  --font-sans: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+  --color-visitors: #3b6fe0;
+  --color-visitors-soft: #e9f0ff;
+  --color-visitors-deep: #2a52b0;
+  --color-pageviews: #16935e;
+  --color-pageviews-soft: #e3f5ec;
+  --color-pageviews-deep: #0f6b44;
+  --color-views: #7c5cdb;
+  --color-views-soft: #f0ebfd;
+  --color-views-deep: #5a3fb3;
+  --color-bounce: #d9692f;
+  --color-bounce-soft: #fdefe5;
+  --color-bounce-deep: #a8481a;
 
-  /* Only floating things cast a shadow: popovers, dialogs, the tooltip. */
-  --shadow-float: 0 8px 24px -12px rgb(0 0 0 / 0.18);
-  --radius-pop: 10px;
+  --color-up: #0f7a4d;
+  --color-up-soft: #dff3e9;
+  --color-down: #b4400f;
+  --color-down-soft: #fcebe1;
+
+  --font-sans: "Onest Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Onest Variable", ui-sans-serif, system-ui, sans-serif;
+
+  --shadow-float: 0 12px 32px -12px rgb(22 24 29 / 0.22), 0 2px 6px -2px rgb(22 24 29 / 0.08);
+  --radius-card: 1.25rem;
+  --radius-pop: 12px;
 }
 
+/* Dark follows the system: the same roles, metric tones deepened to pass
+   the dataviz checks on the dark card (#171a21), tints dimmed to match. */
 @media (prefers-color-scheme: dark) {
   :root {
-    --color-paper: #111210;
-    --color-surface: #181916;
-    --color-ink: #f2f2ee;
-    --color-muted: #9b9c95;
-    --color-faint: #5e5f59;
-    --color-hairline: #292a26;
-    --color-accent: #9db29d;
-    --color-accent-soft: #9db29d2e;
-    --color-danger: #e08a7a;
-    --shadow-float: 0 8px 24px -12px rgb(0 0 0 / 0.6);
+    --color-paper: #0f1115;
+    --color-surface: #171a21;
+    --color-ink: #eceef3;
+    --color-muted: #9aa1b0;
+    --color-faint: #5f6675;
+    --color-hairline: #262a33;
+    --color-track: #20242c;
+    --color-accent: #4f84ea;
+    --color-accent-soft: #1a2440;
+    --color-danger: #f07a6a;
+
+    --color-visitors: #4f84ea;
+    --color-visitors-soft: #1a2440;
+    --color-visitors-deep: #a9c1f7;
+    --color-pageviews: #1f9f67;
+    --color-pageviews-soft: #12291f;
+    --color-pageviews-deep: #8fdcb8;
+    --color-views: #8a6de6;
+    --color-views-soft: #241d3d;
+    --color-views-deep: #c8bbf7;
+    --color-bounce: #dd7440;
+    --color-bounce-soft: #301e14;
+    --color-bounce-deep: #f3b893;
+
+    --color-up: #6bd6a6;
+    --color-up-soft: #12301f;
+    --color-down: #f2a175;
+    --color-down-soft: #35200f;
+
+    --shadow-float: 0 12px 32px -12px rgb(0 0 0 / 0.7), 0 2px 6px -2px rgb(0 0 0 / 0.5);
   }
 }
 

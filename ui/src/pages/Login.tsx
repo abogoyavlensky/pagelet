@@ -31,10 +31,10 @@ export default function Login() {
 
   return (
     <main className="flex min-h-screen items-center justify-center px-6">
-      <form onSubmit={submit} className="w-full max-w-xs">
-        <Wordmark className="text-3xl" />
-        <p className="mt-2 text-muted">Analytics without the cookies.</p>
-        <label htmlFor="password" className="mt-12 block text-sm text-muted">Password</label>
+      <form onSubmit={submit} className="w-full max-w-sm rounded-card border border-hairline bg-surface p-6 sm:p-8">
+        <Wordmark className="text-xl" />
+        <p className="mt-3 text-sm text-muted">Analytics without the cookies.</p>
+        <label htmlFor="password" className="mt-8 block text-sm font-medium text-ink">Password</label>
         <input
           key={shakes}
           id="password"
@@ -45,7 +45,7 @@ export default function Login() {
           onChange={(e) => { setPassword(e.target.value); setError(undefined) }}
           aria-invalid={!!error}
           aria-describedby={error ? 'login-error' : undefined}
-          className={`mt-2 block w-full rounded-lg border bg-surface px-3 py-2.5 text-ink outline-none focus-visible:outline-none transition-colors ${
+          className={`mt-2 block w-full rounded-lg border bg-paper px-3 py-2.5 text-ink outline-none focus-visible:outline-none transition-colors ${
             error ? 'border-danger focus:ring-2 focus:ring-danger/30' : 'border-hairline focus:border-accent'
           } ${shakes > 0 ? 'shake' : ''}`}
         />

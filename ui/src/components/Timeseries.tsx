@@ -1,76 +1,84 @@
-import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
+import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import type { Stats } from '../api'
 import { count, longDate, tick } from '../format'
-import type { Metric } from './Headline'
+import { Segmented } from './Card'
+import Card from './Card'
+import type { Metric } from './StatCards'
 
-// One quiet line: 2px in the accent, no fill and no grid, a hairline
-// baseline, three muted y ticks, and a hover readout of both numbers. One
-// series, so no legend: the underlined number above names it. Colours are
-// the theme's CSS variables, so the dark theme needs nothing here. Switching
-// metric fades the line in; there is no draw-in.
-const ACCENT = 'var(--color-accent)'
+// The traffic card: one series in its metric's colour with a soft wash
+// under it, hairline gridlines, and a readout of both numbers on hover.
+// The switch between visitors and pageviews sits in the card's header.
+const COLOR: Record<Metric, string> = { visitors: 'var(--color-visitors)', pageviews: 'var(--color-pageviews)' }
 const HAIRLINE = 'var(--color-hairline)'
 const MUTED = 'var(--color-muted)'
-const PAPER = 'var(--color-paper)'
-
-const LABELS: Record<Metric, string> = { visitors: 'visitors', pageviews: 'pageviews' }
 
 type Point = Stats['timeseries'][number]
 
-function Readout({ active, payload, metric }: {
-  active?: boolean
-  payload?: { payload: Point }[]
-  metric: Metric
-}) {
+function Readout({ active, payload }: { active?: boolean; payload?: { payload: Point }[] }) {
   if (!active || !payload?.length) return null
   const p = payload[0].payload
-  const other: Metric = metric === 'visitors' ? 'pageviews' : 'visitors'
   return (
-    <div className="rounded-lg border border-hairline bg-surface px-3 py-2 text-sm shadow-float">
-      <p className="text-xs text-muted">{longDate(p.t)}</p>
-      <p className="mt-1 flex items-center gap-2">
-        <span className="inline-block h-0.5 w-3 rounded-full bg-accent" />
-        <strong className="num font-medium text-ink">{count(p[metric])}</strong>
-        <span className="text-muted">{LABELS[metric]}</span>
+    <div className="rounded-xl border border-hairline bg-surface px-3 py-2.5 text-sm shadow-float">
+      <p className="text-xs font-medium text-muted">{longDate(p.t)}</p>
+      <p className="mt-1.5 flex items-center gap-2">
+        <span className="size-2 rounded-full bg-visitors" />
+        <span className="num font-semibold text-ink">{count(p.visitors)}</span>
+        <span className="text-muted">visitors</span>
       </p>
-      <p className="flex items-center gap-2 pl-5">
-        <span className="num text-ink">{count(p[other])}</span>
-        <span className="text-muted">{LABELS[other]}</span>
+      <p className="mt-0.5 flex items-center gap-2">
+        <span className="size-2 rounded-full bg-pageviews" />
+        <span className="num font-semibold text-ink">{count(p.pageviews)}</span>
+        <span className="text-muted">pageviews</span>
       </p>
     </div>
   )
 }
 
-export default function Timeseries({ data, metric }: { data: Stats['timeseries']; metric: Metric }) {
+export default function Timeseries({ data, metric, onMetric, className = '' }: {
+  data: Stats['timeseries']
+  metric: Metric
+  onMetric: (m: Metric) => void
+  className?: string
+}) {
+  const color = COLOR[metric]
   return (
-    <figure>
-      <figcaption className="sr-only">{metric === 'visitors' ? 'Visitors' : 'Pageviews'} over the period</figcaption>
-      <div key={metric} className="fade h-60" aria-hidden>
-        <ResponsiveContainer width="100%" height="100%">
-          <LineChart data={data} margin={{ top: 8, right: 12, bottom: 0, left: 0 }}>
-            <XAxis dataKey="t" tickFormatter={tick} interval="preserveStartEnd" minTickGap={32} tickLine={false}
-              axisLine={{ stroke: HAIRLINE }} tick={{ fill: MUTED, fontSize: 12 }} dy={8} />
-            <YAxis allowDecimals={false} tickCount={3} tickLine={false} axisLine={false} width={40}
-              tick={{ fill: MUTED, fontSize: 12 }} tickFormatter={(v: number) => count(v)} />
-            <Tooltip cursor={{ stroke: HAIRLINE, strokeWidth: 1 }} isAnimationActive={false}
-              wrapperStyle={{ outline: 'none' }}
-              content={(props) => <Readout {...(props as object)} metric={metric} />} />
-            <Line type="monotone" dataKey={metric} stroke={ACCENT} strokeWidth={2}
-              strokeLinejoin="round" strokeLinecap="round" dot={false}
-              activeDot={{ r: 4.5, fill: ACCENT, stroke: PAPER, strokeWidth: 2 }}
-              isAnimationActive={false} />
-          </LineChart>
-        </ResponsiveContainer>
-      </div>
-      {/* The same numbers as a table, for screen readers. */}
-      <table className="sr-only">
-        <thead><tr><th>Time (UTC)</th><th>Visitors</th><th>Pageviews</th></tr></thead>
-        <tbody>
-          {data.map((p) => (
-            <tr key={p.t}><td>{longDate(p.t)}</td><td>{p.visitors}</td><td>{p.pageviews}</td></tr>
-          ))}
-        </tbody>
-      </table>
-    </figure>
+    <Card className={className} title="Traffic"
+      action={<Segmented label="Chart shows" size="sm" value={metric} onChange={onMetric}
+        options={[{ value: 'visitors', label: 'Visitors' }, { value: 'pageviews', label: 'Pageviews' }]} />}>
+      <figure>
+        <figcaption className="sr-only">{metric === 'visitors' ? 'Visitors' : 'Pageviews'} over the period</figcaption>
+        <div key={metric} className="fade -ml-2 h-56 sm:h-64" aria-hidden>
+          <ResponsiveContainer width="100%" height="100%">
+            <AreaChart data={data} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
+              <defs>
+                <linearGradient id={`wash-${metric}`} x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor={color} stopOpacity={0.2} />
+                  <stop offset="100%" stopColor={color} stopOpacity={0.02} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid vertical={false} stroke={HAIRLINE} />
+              <XAxis dataKey="t" tickFormatter={tick} interval="preserveStartEnd" minTickGap={32} tickLine={false}
+                axisLine={false} tick={{ fill: MUTED, fontSize: 12 }} dy={8} />
+              <YAxis allowDecimals={false} tickCount={5} tickLine={false} axisLine={false} width={40}
+                tick={{ fill: MUTED, fontSize: 12 }} tickFormatter={(v: number) => count(v)} />
+              <Tooltip cursor={{ stroke: MUTED, strokeWidth: 1, strokeOpacity: 0.4 }} isAnimationActive={false}
+                wrapperStyle={{ outline: 'none' }} content={(props) => <Readout {...(props as object)} />} />
+              <Area type="monotone" dataKey={metric} stroke={color} strokeWidth={2.5} fill={`url(#wash-${metric})`}
+                strokeLinejoin="round" strokeLinecap="round"
+                activeDot={{ r: 5, fill: color, stroke: 'var(--color-surface)', strokeWidth: 2 }}
+                isAnimationActive={false} />
+            </AreaChart>
+          </ResponsiveContainer>
+        </div>
+        <table className="sr-only">
+          <thead><tr><th>Time (UTC)</th><th>Visitors</th><th>Pageviews</th></tr></thead>
+          <tbody>
+            {data.map((p) => (
+              <tr key={p.t}><td>{longDate(p.t)}</td><td>{p.visitors}</td><td>{p.pageviews}</td></tr>
+            ))}
+          </tbody>
+        </table>
+      </figure>
+    </Card>
   )
 }

@@ -1,13 +1,15 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useState } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router'
 import { api, useApi, type Period, type Stats } from '../api'
 import Breakdown, { Events } from '../components/Breakdown'
-import Headline, { type Metric } from '../components/Headline'
+import { Segmented } from '../components/Card'
+import LiveCard from '../components/LiveCard'
+import StatCards, { type Metric } from '../components/StatCards'
 import Timeseries from '../components/Timeseries'
 import TopBar from '../components/TopBar'
 import Waiting from '../components/Waiting'
 import { country } from '../format'
-import { LAST_SITE, useSignedOutOn } from '../session'
+import { useSignedOutOn } from '../session'
 
 // The period lives in the URL (?period=7d, ?period=custom&from=..&to=..)
 // so a reload or a shared link shows the same range.
@@ -43,8 +45,6 @@ export default function Site() {
   const [first, setFirst] = useState<Report>()
   useSignedOutOn(sites.error ?? report.error)
   const site = sites.data?.find((s) => s.id === id)
-
-  useEffect(() => { if (site) localStorage.setItem(LAST_SITE, site.id) }, [site])
 
   const choose = (p: Period) => {
     const q = new URLSearchParams({ period: p.period })
@@ -84,59 +84,52 @@ export default function Site() {
 
       {waiting && <Waiting site={site} load={load} onOpen={setFirst} />}
       {shown && !waiting && (
-        <Body report={shown} metric={metric} onMetric={setMetric} dim={report.loading || !!report.error} />
+        <Body report={shown} metric={metric} onMetric={setMetric} dim={report.loading || !!report.error} siteId={id} />
       )}
     </div>
   )
 }
 
 const DEVICE_VIEWS = [
-  { key: 'devices', label: 'Devices' },
-  { key: 'browsers', label: 'Browsers' },
-  { key: 'os', label: 'Systems' },
+  { value: 'devices', label: 'Devices' },
+  { value: 'browsers', label: 'Browsers' },
+  { value: 'os', label: 'Systems' },
 ] as const
+
+type DeviceView = (typeof DEVICE_VIEWS)[number]['value']
 
 const capitalised = (s: string) => s.charAt(0).toUpperCase() + s.slice(1)
 
-function Body({ report, metric, onMetric, dim }: {
+function Body({ report, metric, onMetric, dim, siteId }: {
   report: Report
   metric: Metric
   onMetric: (m: Metric) => void
   dim: boolean
+  siteId: string
 }) {
   const { stats, period } = report
-  const [devices, setDevices] = useState<(typeof DEVICE_VIEWS)[number]['key']>('devices')
-  const fade = `transition-opacity ${dim ? 'opacity-50' : ''}`
-
-  if (stats.totals.visitors === 0) {
-    return <div className={fade}><Headline stats={stats} period={period} metric={metric} onMetric={onMetric} /></div>
-  }
-
-  const totals = { visitors: stats.totals.visitors, pageviews: stats.totals.pageviews }
-  const deviceTitle = (
-    <span className="flex gap-3">
-      {DEVICE_VIEWS.map((v) => (
-        <button key={v.key} type="button" aria-pressed={devices === v.key} onClick={() => setDevices(v.key)}
-          className={`rounded-sm transition-colors ${devices === v.key ? 'text-ink' : 'font-normal text-muted hover:text-ink'}`}>
-          {v.label}
-        </button>
-      ))}
-    </span>
-  )
-
+  const [devices, setDevices] = useState<DeviceView>('devices')
+  // grid-cols-1 is minmax(0, 1fr): a long row never widens the column past the screen.
+  const gap = 'grid grid-cols-1 gap-3 sm:gap-4 [&>*]:min-w-0'
   return (
-    <div className={fade}>
-      <Headline stats={stats} period={period} metric={metric} onMetric={onMetric} />
-      <div className="mt-12">
-        <Timeseries data={stats.timeseries} metric={metric} />
+    <div className={`${gap} transition-opacity ${dim ? 'opacity-60' : ''}`}>
+      <StatCards stats={stats} period={period} />
+      <div className={`${gap} lg:grid-cols-3`}>
+        <Timeseries data={stats.timeseries} metric={metric} onMetric={onMetric} className="lg:col-span-2" />
+        <LiveCard siteId={siteId} />
       </div>
-      <div className="mt-14 grid gap-x-16 gap-y-10 min-[720px]:grid-cols-2">
+      <div className={`${gap} md:grid-cols-2`}>
         <Breakdown title="Pages" testId="pages" rows={stats.pages} />
         <Breakdown title="Sources" testId="sources" rows={stats.referrers} />
-        <Breakdown title="Countries" testId="countries" rows={stats.countries} totals={totals} label={country} />
-        <Breakdown key={devices} title={deviceTitle} testId="devices" rows={stats[devices]} totals={totals}
-          label={devices === 'devices' ? capitalised : undefined} />
-        {stats.events.length > 0 && <Events rows={stats.events} />}
+      </div>
+      <div className={`${gap} md:grid-cols-2 md:items-start`}>
+        <Breakdown title="Countries" testId="countries" rows={stats.countries} share={stats.totals.visitors} label={country} />
+        <div className={gap}>
+          <Breakdown key={devices} testId="devices" rows={stats[devices]} share={stats.totals.visitors}
+            label={devices === 'devices' ? capitalised : undefined}
+            title={<Segmented label="Show" size="sm" value={devices} options={[...DEVICE_VIEWS]} onChange={setDevices} />} />
+          <Events rows={stats.events} />
+        </div>
       </div>
     </div>
   )
