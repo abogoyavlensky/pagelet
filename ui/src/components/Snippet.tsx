@@ -10,8 +10,8 @@ export default function Snippet() {
     setTimeout(() => setCopied(false), 1600)
   }
   return (
-    <div className="flex items-stretch overflow-hidden rounded-lg border border-hairline bg-surface">
-      <code className="flex-1 overflow-x-auto px-4 py-3 font-mono text-[13px] whitespace-nowrap text-ink">
+    <div className="flex min-w-0 items-stretch overflow-hidden rounded-lg border border-hairline bg-surface">
+      <code className="min-w-0 flex-1 overflow-x-auto px-4 py-3 font-mono text-[13px] whitespace-nowrap text-ink">
         {tag}
       </code>
       <button onClick={copy}

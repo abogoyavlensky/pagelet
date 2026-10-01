@@ -29,7 +29,7 @@ system). The DuckDB driver is cgo over a prebuilt static libduckdb, so:
 lgx run                 # http://localhost:8080, pagelet.duckdb in the cwd
 lgx test                # unit, route and whole-system tests
 lgx ui-install          # once: the dashboard's npm dependencies
-lgx ui-test             # the dashboard's unit tests (its wording)
+lgx ui-test             # the dashboard's unit tests (labels and badges)
 lgx build               # the dashboard, then bin/pagelet
 ./bin/pagelet
 ```
@@ -53,24 +53,29 @@ lgx run                 # the API on :8080
 lgx ui-dev              # Vite on :5173, proxying /api and /p.js to :8080
 ```
 
-One page per site, light or dark with the system. A small top bar holds
-the site switcher (every site, with who is on each now, and "Add
-website"), the period (today, the last 7 or 30 days, or a custom range of
-UTC days; it is in the URL), who is online with the pages they are on,
-and a `···` menu with the tracking code, the site's settings (move it to
-another domain, or delete it with its events) and sign-out. Below it: a
-sentence with the visitors, how they compare with the span just before
-(cut at the same time of day while today runs), the pageviews, views per
-visit and bounce rate, one line chart (hourly for one day, daily
-otherwise; the visitors and pageviews numbers switch it), and the top
-pages, sources, countries and devices (or browsers, or systems), each
-switchable between visitors and views, plus custom events when a site
-sends any. A visit is a visitor's day (see What is collected), and a
-bounce is a visitor whose only event in the period is one page view.
+Light or dark with the system, laid out for desktops and phones. `/` is
+the websites overview: a card per site with the last 7 days' visitors,
+the change against the 7 days before, a sparkline and who is online. A
+site's page has one top bar (the logo back to the overview, the site as a
+button that switches sites, the period as tabs: today, 7 or 30 days, or a
+custom range of UTC days kept in the URL, then Settings and sign-out) over
+a grid of cards:
 
-A site is added by its domain alone. Until its first event arrives, its
-page shows the tracking code and waits; the first visit turns that into
-"You're live". `/` opens the site looked at last.
+- visitors, pageviews, views per visit and bounce rate, each with the
+  change against the span just before (cut at the same time of day while
+  today runs);
+- the traffic chart (hourly for one day, daily otherwise), switchable
+  between visitors and pageviews, beside who is online now and on which
+  pages;
+- top pages and sources (visitors and views), countries, and devices,
+  browsers or systems (visitors and share), and custom events.
+
+A visit is a visitor's day (see What is collected), and a bounce is a
+visitor whose only event in the period is one page view. Settings hold the
+tracking code, the domain, and deleting the site with its events. A site
+is added by its domain alone; until its first event arrives, its page
+shows the tracking code and waits, and the first visit turns that into
+"You're live".
 
 ## Tracking a site
 

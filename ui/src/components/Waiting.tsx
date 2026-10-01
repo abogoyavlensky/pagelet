@@ -37,15 +37,15 @@ export default function Waiting<T extends { stats: { has_events: boolean } }>({ 
   }, [live, load])
 
   return (
-    <section data-testid="waiting" className="max-w-2xl">
-      <h1 className="font-display text-4xl leading-[1.15] tracking-tight text-ink sm:text-5xl">
+    <section data-testid="waiting" className="max-w-2xl rounded-card border border-hairline bg-surface p-5 sm:p-8">
+      <h1 className="text-2xl font-semibold tracking-tight text-ink">
         {site ? `${site.domain} is ready` : ' '}
       </h1>
-      <p className="mt-8 text-muted">
+      <p className="mt-6 text-muted">
         Add this to the <code className="font-mono text-[0.9em] text-ink">&lt;head&gt;</code> of every page:
       </p>
       <div className="mt-3"><Snippet /></div>
-      <div role="status" className="mt-12">
+      <div role="status" className="mt-8 rounded-xl bg-paper px-4 py-4">
         {live ? (
           <div className="live">
             <p className="flex items-center gap-2.5 font-medium text-ink">
@@ -56,7 +56,7 @@ export default function Waiting<T extends { stats: { has_events: boolean } }>({ 
             </p>
             <p className="mt-1 pl-6.5 text-muted">Your first visit has been received.</p>
             <button type="button" onClick={() => onOpen(live)}
-              className="mt-6 ml-6.5 rounded-lg bg-ink px-4 py-2 text-sm font-medium text-paper">
+              className="mt-4 ml-6.5 rounded-lg bg-ink px-4 py-2 text-sm font-medium text-paper">
               View dashboard
             </button>
           </div>

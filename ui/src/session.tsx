@@ -5,9 +5,6 @@ import { api, ApiError } from './api'
 
 export type SessionState = 'checking' | 'in' | 'out'
 
-/** The localStorage key "/" reads to reopen the site looked at last. */
-export const LAST_SITE = 'pagelet:last-site'
-
 const SessionContext = createContext<{
   state: SessionState
   setState: (s: SessionState) => void

@@ -1,109 +1,102 @@
 import { useState, type ReactNode } from 'react'
 import type { EventRow, Row } from '../api'
 import { count, share } from '../format'
+import Card from './Card'
 
-const SHOWN = 5
+const SHOWN = 7
 
-type Unit = 'visitors' | 'pageviews'
+type Item = { key: string; name: string; bar: number; cells: ReactNode[] }
 
 /**
- * A top list in the open: no box and no row borders, a title, then one row
- * per entry with the entry's number over a thin accent rule as long as its
- * share of the longest; the rules are the list's only lines. The unit word in the header switches the number between
- * visitors and views; the order stays the server's (the top ten by
- * visitors), since re-ranking those ten by views would pass for a top ten
- * by views that it is not. Share lists (countries, devices) also show each
- * entry's percentage of the period's total. Five rows, then "Show N more".
+ * A top list on a card: column labels in the header, then rows over soft
+ * bars as long as each row's visitors against the top one. Seven rows,
+ * then "Show all".
  */
-export default function Breakdown({ title, testId, rows, totals, label = (n) => n }: {
+function List({ title, testId, columns, items, className = '' }: {
   title: ReactNode
   testId: string
-  rows: Row[]
-  totals?: { visitors: number; pageviews: number }
-  label?: (name: string) => string
-}) {
-  const [unit, setUnit] = useState<Unit>('visitors')
-  const other: Unit = unit === 'visitors' ? 'pageviews' : 'visitors'
-  return (
-    <List title={title} testId={testId}
-      head={
-        <button type="button" onClick={() => setUnit(other)}
-          aria-label={other === 'pageviews' ? 'Show views' : 'Show visitors'}
-          className="rounded-sm text-sm text-muted underline-offset-4 transition-colors hover:text-ink hover:underline focus-visible:underline">
-          {unit === 'visitors' ? 'visitors' : 'views'}
-        </button>
-      }
-      items={rows.map((r) => ({
-        key: r.name,
-        name: label(r.name),
-        value: r[unit],
-        cells: totals
-          ? [<span key="n" className="num text-muted">{count(r[unit])}</span>,
-             <span key="s" className="num w-11 text-right text-ink">{share(r[unit], totals[unit])}</span>]
-          : [<span key="n" className="num text-ink">{count(r[unit])}</span>],
-      }))} />
-  )
-}
-
-/** Custom events: how many times each was sent, and by how many visitors. */
-export function Events({ rows }: { rows: EventRow[] }) {
-  return (
-    <List title="Events" testId="events"
-      head={
-        <span className="flex gap-6 text-sm text-muted">
-          <span>count</span>
-          <span className="w-14 text-right">visitors</span>
-        </span>
-      }
-      items={rows.map((e) => ({
-        key: e.name,
-        name: e.name,
-        value: e.count,
-        cells: [<span key="c" className="num text-ink">{count(e.count)}</span>,
-                <span key="v" className="num w-14 text-right text-muted">{count(e.visitors)}</span>],
-      }))} />
-  )
-}
-
-type Item = { key: string; name: string; value: number; cells: ReactNode[] }
-
-function List({ title, testId, head, items }: {
-  title: ReactNode
-  testId: string
-  head: ReactNode
+  columns: string[]
   items: Item[]
+  className?: string
 }) {
   const [all, setAll] = useState(false)
-  const max = Math.max(1, ...items.map((i) => i.value))
+  const max = Math.max(1, ...items.map((i) => i.bar))
   const shown = all ? items : items.slice(0, SHOWN)
   return (
-    <section data-testid={`panel-${testId}`}>
-      <header className="flex items-baseline justify-between gap-4 pb-2">
-        <h2 className="font-medium text-ink">{title}</h2>
-        {items.length > 0 && head}
-      </header>
+    <Card className={className} testId={`panel-${testId}`} title={title}
+      action={items.length > 0 && (
+        <span className="flex gap-1 text-xs font-medium text-muted">
+          {columns.map((c) => <span key={c} className="w-16 text-right">{c}</span>)}
+        </span>
+      )}>
       {items.length === 0 ? (
-        <p className="py-2 text-sm text-muted">Nothing in this period</p>
+        <p className="rounded-xl bg-paper px-3 py-6 text-center text-sm text-muted">Nothing in this period</p>
       ) : (
         <>
-          <ol>
+          <ol className="grid grid-cols-1 gap-1">
             {shown.map((i) => (
-              <li key={i.key} className="relative flex items-baseline gap-6 pt-1.5 pb-2 text-sm">
-                <span className="min-w-0 flex-1 truncate text-ink" title={i.name}>{i.name}</span>
+              <li key={i.key} className="relative flex h-9 items-center gap-1 text-sm">
+                <span aria-hidden className="absolute inset-y-0 left-0 rounded-lg bg-visitors-soft"
+                  style={{ width: `${Math.max(2, (i.bar / max) * 100)}%` }} />
+                <span className="relative min-w-0 flex-1 truncate px-2.5 text-ink" title={i.name}>{i.name}</span>
                 {i.cells}
-                <span aria-hidden className="absolute bottom-0 left-0 h-0.5 rounded-full bg-accent/45"
-                  style={{ width: `${(i.value / max) * 100}%` }} />
               </li>
             ))}
           </ol>
           {items.length > SHOWN && (
             <button type="button" onClick={() => setAll(!all)}
-              className="mt-2 text-sm text-muted underline-offset-4 transition-colors hover:text-ink hover:underline">
-              {all ? 'Show fewer' : `Show ${items.length - SHOWN} more`}
+              className="mt-2 w-full rounded-lg py-1.5 text-sm font-medium text-muted transition-colors hover:bg-paper hover:text-ink">
+              {all ? 'Show fewer' : `Show all ${items.length}`}
             </button>
           )}
         </>
       )}
-    </section>
+    </Card>
+  )
+}
+
+const cell = (key: string, v: ReactNode, strong = true) => (
+  <span key={key} className={`num relative w-16 text-right ${strong ? 'font-medium text-ink' : 'text-muted'}`}>{v}</span>
+)
+
+/** Pages, sources and the like: visitors and views for each. */
+export default function Breakdown({ title, testId, rows, label = (n) => n, share: whole, className }: {
+  title: ReactNode
+  testId: string
+  rows: Row[]
+  label?: (name: string) => string
+  /** Total visitors: show each row's share of them instead of its views. */
+  share?: number
+  className?: string
+}) {
+  return (
+    <List title={title} testId={testId} className={className}
+      columns={whole === undefined ? ['Visitors', 'Views'] : ['Visitors', 'Share']}
+      items={rows.map((r) => ({
+        key: r.name,
+        name: label(r.name),
+        bar: r.visitors,
+        cells: [cell('v', count(r.visitors)),
+          whole === undefined ? cell('p', count(r.pageviews), false) : cell('s', share(r.visitors, whole), false)],
+      }))} />
+  )
+}
+
+/** Custom events: how many times each was sent, and by how many visitors. */
+export function Events({ rows, className }: { rows: EventRow[]; className?: string }) {
+  if (rows.length === 0) {
+    return (
+      <Card title="Events" testId="panel-events" className={className}>
+        <p className="text-sm text-muted">No custom events in this period. Send one from your site:</p>
+        <code className="mt-3 block rounded-lg bg-paper px-3 py-2 font-mono text-[13px] text-ink">pagelet("signup")</code>
+      </Card>
+    )
+  }
+  return (
+    <List title="Events" testId="events" className={className} columns={['Count', 'Visitors']}
+      items={rows.map((e) => ({
+        key: e.name, name: e.name, bar: e.count,
+        cells: [cell('c', count(e.count)), cell('v', count(e.visitors), false)],
+      }))} />
   )
 }
