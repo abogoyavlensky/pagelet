@@ -279,7 +279,7 @@
                     (let [p (stats/period db (query-params req) (stats/today db))]
                       (if (:error p)
                         (bad-request (:error p))
-                        (json-response 200 (stats/stats db (:id site) p)))))))}
+                        (json-response 200 (stats/stats db (:id site) p (stats/now db))))))))}
 
      {:path "/api/sites/:id/realtime"
       :method :get

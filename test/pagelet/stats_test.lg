@@ -10,6 +10,10 @@
 
 (def ^:private now-day "2026-09-10")
 
+;; "Now" for the comparison with the span before: after every seeded day, so
+;; no period is cut short.
+(def ^:private later "2026-09-20T00:00:00")
+
 (defn- insert! [conn ts n {:keys [site name visitor path referrer browser timezone country]}]
   (dotimes [_ n]
     (db/execute! conn ["insert into events values (?, ?::timestamp, ?, ?, ?, ?, ?, 'macOS', 'desktop', null, ?, ?)"
@@ -64,9 +68,12 @@
 (deftest seven-days
   (let [conn (seeded)
         p (stats/period conn {:period "7d"} now-day)
-        s (stats/stats conn "s1" p)]
+        s (stats/stats conn "s1" p later)]
     (is (= {:from "2026-09-04T00:00:00" :to "2026-09-11T00:00:00" :bucket "day"} (:period s)))
-    (is (= {:visitors 2 :pageviews 28 :views_per_visitor 14.0} (:totals s)))
+    (is (= {:visitors 2 :pageviews 28 :views_per_visitor 14.0 :bounce_rate 0} (:totals s)))
+    ;; The 7 days before held nothing.
+    (is (= {:visitors 0 :pageviews 0} (:previous s)))
+    (is (true? (:has_events s)))
     (is (= [{:t "2026-09-04" :visitors 0 :pageviews 0}
             {:t "2026-09-05" :visitors 0 :pageviews 0}
             {:t "2026-09-06" :visitors 0 :pageviews 0}
@@ -110,16 +117,45 @@
 
 (deftest an-empty-period
   (let [conn (seeded)
-        s (stats/stats conn "s1" (stats/period conn {:period "custom" :from "2026-01-01" :to "2026-01-03"} now-day))]
-    (is (= {:visitors 0 :pageviews 0 :views_per_visitor 0.0} (:totals s)))
+        p (stats/period conn {:period "custom" :from "2026-01-01" :to "2026-01-03"} now-day)
+        s (stats/stats conn "s1" p later)]
+    (is (= {:visitors 0 :pageviews 0 :views_per_visitor 0.0 :bounce_rate 0} (:totals s)))
+    (is (= {:visitors 0 :pageviews 0} (:previous s)))
+    ;; Nothing in the period, but the site has events.
+    (is (true? (:has_events s)))
+    (is (false? (:has_events (stats/stats conn "nope" p later))))
     (is (= [0 0 0] (map :pageviews (:timeseries s))))
     (is (= [] (:pages s)))
     (is (= [] (:countries s)))
     (is (= [] (:events s)))
     (duckdb/close! conn)))
 
+(deftest bounces
+  ;; Four visitors on one day; only the one whose single event is a
+  ;; pageview bounced.
+  (let [conn (duckdb/open "")]
+    (migrations/migrate! conn)
+    (insert! conn "2026-09-10 09:00:00" 1 {:visitor "one-view" :path "/"})
+    (insert! conn "2026-09-10 09:00:00" 1 {:visitor "view-and-signup" :path "/"})
+    (insert! conn "2026-09-10 09:01:00" 1 {:visitor "view-and-signup" :path "/" :name "signup"})
+    (insert! conn "2026-09-10 09:00:00" 2 {:visitor "two-views" :path "/"})
+    (insert! conn "2026-09-10 09:00:00" 1 {:visitor "signup-only" :path "/" :name "signup"})
+    (is (= 25 (:bounce_rate (stats/totals conn "s1" (stats/period conn {:period "today"} now-day)))))
+    (duckdb/close! conn)))
+
+(deftest the-previous-span
+  ;; 2026-09-10 alone is compared with 2026-09-09, cut at the same time of
+  ;; day while the 10th is still running.
+  (let [conn (seeded)
+        p (stats/period conn {:period "custom" :from "2026-09-10" :to "2026-09-10"} now-day)]
+    (is (= {:visitors 1 :pageviews 8} (:previous (stats/stats conn "s1" p later))))
+    (is (= {:visitors 1 :pageviews 5} (:previous (stats/stats conn "s1" p "2026-09-10T12:05:00"))))
+    (is (= {:visitors 0 :pageviews 0} (:previous (stats/stats conn "s1" p "2026-09-10T11:00:00"))))
+    (duckdb/close! conn)))
+
 (deftest online-now
   (let [conn (seeded)]
-    (is (= {:online 1} (stats/realtime conn "s1")))
-    (is (= {:online 0} (stats/realtime conn "s2")))
+    (is (= {:online 1 :pages [{:name "/" :visitors 1}]} (stats/realtime conn "s1")))
+    (is (= {:online 0 :pages []} (stats/realtime conn "s2")))
+    (is (re-matches #"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}" (stats/now conn)))
     (duckdb/close! conn)))

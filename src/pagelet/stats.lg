@@ -11,7 +11,12 @@
 ;; comes from `period`, never from the request.
 ;;
 ;; visitors is count(distinct visitor); pageviews counts rows named
-;; 'pageview'.
+;; 'pageview'. The visitor hash is salted per day, so a visitor is one
+;; visit-day: a bounce is a visitor whose only event in the period is one
+;; pageview. Each report also carries the totals of the span just before
+;; it (cut at the same point when the period is still running) and whether
+;; the site has any event at all, which the dashboard uses to tell a new
+;; site from a quiet period.
 
 (def ^:private list-limit 10)
 
@@ -25,6 +30,11 @@
   "The current UTC day, YYYY-MM-DD."
   [conn]
   (:d (db/execute-one! conn ["select (now() at time zone 'UTC')::date::varchar as d"])))
+
+(defn now
+  "The current UTC time, YYYY-MM-DDTHH:MM:SS."
+  [conn]
+  (:t (db/execute-one! conn ["select strftime(now() at time zone 'UTC', '%Y-%m-%dT%H:%M:%S') as t"])))
 
 (defn- valid-day
   "`s` when it is a real YYYY-MM-DD date, else nil."
@@ -64,16 +74,50 @@
 (defn- in-period-params [site-id {:keys [from to-exclusive]}]
   [site-id from to-exclusive])
 
-(defn totals [conn site-id p]
+(defn totals
+  "Visitors, pageviews, views per visitor and the bounce rate (a whole
+   percentage), from one row per visitor."
+  [conn site-id p]
   (db/execute-one! conn
-                   (into [(str "select count(distinct visitor) as visitors,
-                                       count(*) filter (where name = 'pageview') as pageviews,
-                                       case when count(distinct visitor) = 0 then 0.0
-                                            else round((count(*) filter (where name = 'pageview'))::double
-                                                       / count(distinct visitor), 1)
-                                       end as views_per_visitor
-                                from events where " in-period)]
+                   (into [(str "with per_visitor as (
+                                  select count(*) as events,
+                                         count(*) filter (where name = 'pageview') as pageviews
+                                  from events where " in-period "
+                                  group by visitor)
+                                select count(*) as visitors,
+                                       coalesce(sum(pageviews), 0)::bigint as pageviews,
+                                       case when count(*) = 0 then 0.0
+                                            else round(sum(pageviews)::double / count(*), 1)
+                                       end as views_per_visitor,
+                                       case when count(*) = 0 then 0
+                                            else cast(round(100 * (count(*) filter (where events = 1 and pageviews = 1))::double
+                                                            / count(*)) as integer)
+                                       end as bounce_rate
+                                from per_visitor")]
                          (in-period-params site-id p))))
+
+(defn- previous-period
+  "The span of the same length just before `p`, ending as far into its
+   length as `now` is into `p`'s: {:from :to-exclusive}."
+  [conn {:keys [from to-exclusive]} now]
+  (let [row (db/execute-one! conn ["select strftime(?::timestamp - (?::timestamp - ?::timestamp),
+                                                    '%Y-%m-%dT%H:%M:%S') as f,
+                                           strftime(least(?::timestamp, ?::timestamp) - (?::timestamp - ?::timestamp),
+                                                    '%Y-%m-%dT%H:%M:%S') as t"
+                                   from to-exclusive from
+                                   to-exclusive now to-exclusive from])]
+    {:from (:f row) :to-exclusive (:t row)}))
+
+(defn previous
+  "{:visitors :pageviews} over the span just before `p`."
+  [conn site-id p now]
+  (select-keys (totals conn site-id (previous-period conn p now)) [:visitors :pageviews]))
+
+(defn has-events?
+  "Whether the site has any event at all."
+  [conn site-id]
+  (boolean (:any (db/execute-one! conn ["select exists(select 1 from events where site_id = ?) as any"
+                                        site-id]))))
 
 (def ^:private bucket-format
   {"hour" "%Y-%m-%dT%H:00"
@@ -146,10 +190,13 @@
                   (in-period-params site-id p))))
 
 (defn stats
-  "Every panel for `site-id` over period `p`."
-  [conn site-id p]
+  "Every panel for `site-id` over period `p`, compared with the span before
+   as of `now` (YYYY-MM-DDTHH:MM:SS, UTC)."
+  [conn site-id p now]
   {:period {:from (:from p) :to (:to-exclusive p) :bucket (:bucket p)}
+   :has_events (has-events? conn site-id)
    :totals (totals conn site-id p)
+   :previous (previous conn site-id p now)
    :timeseries (timeseries conn site-id p)
    :pages (pages conn site-id p)
    :referrers (referrers conn site-id p)
@@ -159,10 +206,20 @@
    :devices (devices conn site-id p)
    :events (events conn site-id p)})
 
+(def ^:private last-five-minutes
+  "site_id = ? and ts > (now() at time zone 'UTC') - interval 5 minute")
+
 (defn realtime
-  "{:online n}: distinct visitors in the last five minutes."
+  "{:online n :pages [...]}: distinct visitors in the last five minutes, and
+   the five pages most of them viewed."
   [conn site-id]
-  {:online (:online (db/execute-one! conn ["select count(distinct visitor) as online from events
-                                            where site_id = ?
-                                              and ts > (now() at time zone 'UTC') - interval 5 minute"
-                                           site-id]))})
+  {:online (:online (db/execute-one! conn [(str "select count(distinct visitor) as online from events
+                                                 where " last-five-minutes)
+                                           site-id]))
+   :pages (named (db/query conn [(str "select path as label, count(distinct visitor) as visitors
+                                       from events
+                                       where " last-five-minutes " and name = 'pageview'
+                                       group by path
+                                       order by visitors desc, label
+                                       limit 5")
+                                 site-id]))})

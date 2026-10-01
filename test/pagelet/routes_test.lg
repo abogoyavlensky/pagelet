@@ -143,7 +143,11 @@
           (is (= "hour" (get-in stats [:json :period :bucket])))
           (is (= 24 (count (get-in stats [:json :timeseries]))))
           (is (= [{:name "/pricing" :visitors 1 :pageviews 1}] (get-in stats [:json :pages])))
-          (is (= [{:name "NL" :visitors 1 :pageviews 1}] (get-in stats [:json :countries]))))
+          (is (= [{:name "NL" :visitors 1 :pageviews 1}] (get-in stats [:json :countries])))
+          ;; One visitor, one pageview: a bounce. Nothing came before today.
+          (is (true? (get-in stats [:json :has_events])))
+          (is (= 100 (get-in stats [:json :totals :bounce_rate])))
+          (is (= {:visitors 0 :pageviews 0} (get-in stats [:json :previous]))))
         (is (= 200 (:status (call handler :get (str "/api/sites/" (:id site) "/stats") nil me))))
         (is (= 200 (:status (call handler :get (str "/api/sites/" (:id site)
                                                     "/stats?period=custom&from=2026-09-01&to=2026-09-03")
@@ -151,7 +155,8 @@
         (is (= 400 (:status (call handler :get (str "/api/sites/" (:id site) "/stats?period=forever") nil me))))
         (is (= 401 (:status (call handler :get (str "/api/sites/" (:id site) "/stats")))))
         (is (= 404 (:status (call handler :get "/api/sites/000000000000/stats" nil me))))
-        (is (= {:online 1} (:json (call handler :get (str "/api/sites/" (:id site) "/realtime") nil me))))
+        (is (= {:online 1 :pages [{:name "/pricing" :visitors 1}]}
+               (:json (call handler :get (str "/api/sites/" (:id site) "/realtime") nil me))))
         ;; Delete: an event still queued for the site is dropped, and the
         ;; stored ones go with it.
         (event {:d "example.com" :u "https://example.com/late"})
