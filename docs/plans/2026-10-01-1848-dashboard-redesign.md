@@ -396,14 +396,16 @@ Read `/dataviz` before changing the chart.
 **Files:**
 - Modify: `ui/src/pages/Login.tsx`
 
-- [ ] **Step 1: Restyle** to the theme: no card, border or shadow around the form; a centred narrow column with the wordmark, the line "Analytics without the cookies.", a sentence-case "Password" label, a bordered 8px-radius input on `surface`, and the ink "Sign in" button. Keep `#password`, the `role="alert"` text "Wrong password", the shake, and the `aria-invalid` wiring.
+- [x] **Step 1: Restyle** to the theme: no card, border or shadow around the form; a centred narrow column with the wordmark, the line "Analytics without the cookies.", a sentence-case "Password" label, a bordered 8px-radius input on `surface`, and the ink "Sign in" button. Keep `#password`, the `role="alert"` text "Wrong password", the shake, and the `aria-invalid` wiring.
 
-- [ ] **Step 2: Build**
+- [x] **Step 2: Build**
   Run: `cd ui && npm run build && npm run lint`
   Expected: both succeed.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
   `git commit -m "Dashboard: the sign-in page in the new theme"`
+
+> Deviation: `Wordmark` takes its size from `className` (default `text-xl`); a size passed alongside the built-in `text-xl` lost to it.
 
 ### Task 8: Browser tests
 
