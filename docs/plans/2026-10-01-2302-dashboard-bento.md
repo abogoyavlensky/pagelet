@@ -59,9 +59,9 @@ The user rejected the Lichen UI ("navigation is not clear, UX awful, looks bad")
 
 **Files:** `e2e/tests/dashboard.spec.js`
 
-- [ ] **Step 1:** Rewrite the flow: wrong then right password; the overview; "Add website" by domain; the waiting card and "You're live"; the stat tiles (1 visitor, 3 pageviews, 0% bounce); 3 pages; Netherlands at 100%; the Right now card at 1; the chart toggle; the 30 days tab; delete from Settings, back on the overview without the site.
-- [ ] **Step 2:** `mise exec -- lgx e2e` passes, three times in a row.
-- [ ] **Step 3:** Commit `Browser tests for the bento dashboard`.
+- [x] **Step 1:** Rewrite the flow: wrong then right password; the overview; "Add website" by domain; the waiting card and "You're live"; the stat tiles (1 visitor, 3 pageviews, 0% bounce); 3 pages; Netherlands at 100%; the Right now card at 1; the chart toggle; the 30 days tab; delete from Settings, back on the overview without the site.
+- [x] **Step 2:** `mise exec -- lgx e2e` passes, three times in a row.
+- [x] **Step 3:** Commit `Browser tests for the bento dashboard`.
 
 ### Task 3: Docs, review, final check
 
