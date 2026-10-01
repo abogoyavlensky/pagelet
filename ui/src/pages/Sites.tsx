@@ -29,7 +29,6 @@ function SiteCard({ site }: { site: Site }) {
   useSignedOutOn(failed)
   useEffect(() => {
     let live = true
-    setFailed(undefined)
     api.stats(site.id, { period: '7d' }).then((s) => { if (live) setStats(s) }, (e) => { if (live) setFailed(e) })
     api.realtime(site.id).then((r) => { if (live) setOnline(r.online) }, () => {})
     return () => { live = false }
@@ -58,7 +57,7 @@ function SiteCard({ site }: { site: Site }) {
       {failed && !stats ? (
         <p className="mt-6 rounded-xl bg-paper px-3 py-3 text-sm text-danger">
           Could not load this site's numbers.{' '}
-          <button type="button" onClick={(e) => { e.preventDefault(); setTries((n) => n + 1) }}
+          <button type="button" onClick={(e) => { e.preventDefault(); setFailed(undefined); setTries((n) => n + 1) }}
             className="font-medium underline underline-offset-2">
             Retry
           </button>

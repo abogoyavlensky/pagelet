@@ -1,5 +1,7 @@
 # Dashboard Bento Implementation Plan
 
+**Status: completed 2026-10-01** on branch `dashboard-bento` (on top of `master` after PR #6).
+
 > **For agentic workers:** Use executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Replace the rejected "Lichen" dashboard UI (docs/plans/2026-10-01-1848-dashboard-redesign.md) with a modern, readable bento layout in soft colours, the shape of popular analytics apps, built for phones as well as desktops.
@@ -67,7 +69,34 @@ The user rejected the Lichen UI ("navigation is not clear, UX awful, looks bad")
 
 **Files:** `README.md`, `docs/KNOWLEDGE.md`, this plan
 
-- [ ] **Step 1:** README's dashboard paragraph and KNOWLEDGE's font notes for the new UI; mark the Lichen plan's UI as superseded by this one.
-- [ ] **Step 2:** Codex review of the branch against `dashboard-redesign`; fix must-fix findings.
-- [ ] **Step 3:** `mise exec -- lgx check`, and a screenshot pass (desktop light and dark, phone) against the built binary.
-- [ ] **Step 4:** Commit `docs: the bento dashboard`.
+- [x] **Step 1:** README's dashboard paragraph and KNOWLEDGE's font notes for the new UI; mark the Lichen plan's UI as superseded by this one.
+- [x] **Step 2:** Codex review of the branch against `origin/master` (PR #6 had merged the Lichen work); fix must-fix findings.
+- [x] **Step 3:** `mise exec -- lgx check`, and a screenshot pass (desktop light and dark, phone) against the built binary.
+- [x] **Step 4:** Commit `docs: the bento dashboard`.
+
+---
+
+## Completion summary
+
+**Verification**
+- `lgx check` passes: 43 server tests, 4 dashboard tests, both browser specs.
+- Lint shows only the two warnings `session.tsx` already had.
+- The browser tests pass three runs in a row.
+- From the built binary, nothing overflows at 320, 375, 390, 768, 1024 or 1360px.
+- Each of Onest's seven woff2 files comes back from the binary byte for byte as `font/woff2`, and Chromium loads it.
+
+**Codex review** (the first two runs hit Codex's usage limit; the run after the reset went through) found two real issues, both fixed:
+- The Devices card header overflowed on phones and at 768px; card headers now wrap.
+- An overview card whose stats request failed showed a dash forever; it now says so and offers Retry.
+
+**Found myself**
+- At 320px, list rows widened their card: a truncated label still counts its full width as a grid's minimum, so lists use `grid-cols-1`.
+- The Retry fix first cleared its error inside an effect, which added a lint warning; Retry now clears it.
+
+**Deviations**
+- The dark metric tones are deeper than first tried, to pass the validator.
+- The favicon takes the new mark's colours.
+- The branch starts from `origin/master` rather than `dashboard-redesign`, because the shared working tree was on a `pwa` branch at that commit when this branch was created.
+
+**What the plan could have specified better:** the narrowest width to support (320px), so the grid min-width rule is a design decision rather than a late fix.
+
