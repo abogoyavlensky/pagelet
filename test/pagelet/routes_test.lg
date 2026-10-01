@@ -102,10 +102,17 @@
         (is (= 409 (:status (send-json handler :post "/api/sites" {:name "Again" :domain "example.com"} me))))
         (doseq [bad ["https://example.com" "example.com:8080" "example.com/x" "" "-a.com" "a..com"]]
           (is (= 400 (:status (send-json handler :post "/api/sites" {:name "Bad" :domain bad} me))) bad))
-        (is (= 400 (:status (send-json handler :post "/api/sites" {:name "" :domain "ok.com"} me))))
-        (is (= 400 (:status (send-json handler :post "/api/sites" {:name (apply str (repeat 65 "n")) :domain "ok.com"} me))))
+        ;; A missing or blank name is the domain; a long one is refused.
+        (doseq [[body domain] [[{:domain "bare.com"} "bare.com"]
+                               [{:name " " :domain "blank.com"} "blank.com"]]]
+          (let [res (send-json handler :post "/api/sites" body me)]
+            (is (= 201 (:status res)) domain)
+            (is (= {:name domain :domain domain} (select-keys (:json res) [:name :domain])))))
+        (is (= 400 (:status (send-json handler :post "/api/sites" {:name (apply str (repeat 65 "n")) :domain "long.com"} me))))
         (let [other (:json (send-json handler :post "/api/sites" {:name "Another" :domain "another.org"} me))]
-          (is (= ["Another" "Example"] (map :name (:json (call handler :get "/api/sites" nil me)))))
+          ;; Listed by domain.
+          (is (= ["another.org" "bare.com" "blank.com" "example.com"]
+                 (map :domain (:json (call handler :get "/api/sites" nil me)))))
           ;; Update: rename, move to a new domain, refuse a taken one.
           (let [res (send-json handler :put (str "/api/sites/" (:id site)) {:name "Renamed" :domain "example.net"} me)]
             (is (= 200 (:status res)))
@@ -114,6 +121,8 @@
           (is (nil? (get (ingest/sites buffer) "example.com")))
           (is (some? (get (ingest/sites buffer) "example.net")))
           (is (= 200 (:status (send-json handler :put (str "/api/sites/" (:id site)) {:name "Same domain" :domain "example.net"} me))))
+          ;; The dashboard sends only the domain: the name follows it.
+          (is (= "example.net" (:name (:json (send-json handler :put (str "/api/sites/" (:id site)) {:domain "example.net"} me)))))
           (is (= 409 (:status (send-json handler :put (str "/api/sites/" (:id site)) {:name "X" :domain "another.org"} me))))
           (is (= 404 (:status (send-json handler :put "/api/sites/000000000000" {:name "X" :domain "x.org"} me))))
           (is (= 400 (:status (send-json handler :put (str "/api/sites/" (:id other)) {:name "X" :domain "bad domain"} me)))))))))
@@ -143,7 +152,11 @@
           (is (= "hour" (get-in stats [:json :period :bucket])))
           (is (= 24 (count (get-in stats [:json :timeseries]))))
           (is (= [{:name "/pricing" :visitors 1 :pageviews 1}] (get-in stats [:json :pages])))
-          (is (= [{:name "NL" :visitors 1 :pageviews 1}] (get-in stats [:json :countries]))))
+          (is (= [{:name "NL" :visitors 1 :pageviews 1}] (get-in stats [:json :countries])))
+          ;; One visitor, one pageview: a bounce. Nothing came before today.
+          (is (true? (get-in stats [:json :has_events])))
+          (is (= 100 (get-in stats [:json :totals :bounce_rate])))
+          (is (= {:visitors 0 :pageviews 0} (get-in stats [:json :previous]))))
         (is (= 200 (:status (call handler :get (str "/api/sites/" (:id site) "/stats") nil me))))
         (is (= 200 (:status (call handler :get (str "/api/sites/" (:id site)
                                                     "/stats?period=custom&from=2026-09-01&to=2026-09-03")
@@ -151,7 +164,8 @@
         (is (= 400 (:status (call handler :get (str "/api/sites/" (:id site) "/stats?period=forever") nil me))))
         (is (= 401 (:status (call handler :get (str "/api/sites/" (:id site) "/stats")))))
         (is (= 404 (:status (call handler :get "/api/sites/000000000000/stats" nil me))))
-        (is (= {:online 1} (:json (call handler :get (str "/api/sites/" (:id site) "/realtime") nil me))))
+        (is (= {:online 1 :pages [{:name "/pricing" :visitors 1}]}
+               (:json (call handler :get (str "/api/sites/" (:id site) "/realtime") nil me))))
         ;; Delete: an event still queued for the site is dropped, and the
         ;; stored ones go with it.
         (event {:d "example.com" :u "https://example.com/late"})

@@ -17,7 +17,12 @@ export type EventRow = { name: string; count: number; visitors: number }
 
 export type Stats = {
   period: { from: string; to: string; bucket: Bucket }
-  totals: { visitors: number; pageviews: number; views_per_visitor: number }
+  /** Whether the site has any event at all, in any period. */
+  has_events: boolean
+  /** bounce_rate is a whole percentage, 0-100. */
+  totals: { visitors: number; pageviews: number; views_per_visitor: number; bounce_rate: number }
+  /** The span just before the period, cut at the same point while it runs. */
+  previous: { visitors: number; pageviews: number }
   timeseries: { t: string; visitors: number; pageviews: number }[]
   pages: Row[]
   referrers: Row[]
@@ -27,6 +32,9 @@ export type Stats = {
   devices: Row[]
   events: EventRow[]
 }
+
+/** Who is on the site now: the last five minutes. */
+export type Realtime = { online: number; pages: { name: string; visitors: number }[] }
 
 export type Period =
   | { period: 'today' | '7d' | '30d' }
@@ -69,14 +77,13 @@ export const api = {
   logout: () => request<{ ok: true }>('POST', '/api/logout'),
   me: () => request<{ ok: true }>('GET', '/api/me'),
   sites: () => request<Site[]>('GET', '/api/sites'),
-  createSite: (name: string, domain: string) =>
-    request<Site>('POST', '/api/sites', { name, domain }),
-  updateSite: (id: string, name: string, domain: string) =>
-    request<Site>('PUT', `/api/sites/${id}`, { name, domain }),
+  // The dashboard knows sites by domain; the server names them after it.
+  createSite: (domain: string) => request<Site>('POST', '/api/sites', { domain }),
+  updateSite: (id: string, domain: string) => request<Site>('PUT', `/api/sites/${id}`, { domain }),
   deleteSite: (id: string) => request<{ ok: true }>('DELETE', `/api/sites/${id}`),
   stats: (id: string, p: Period) =>
     request<Stats>('GET', `/api/sites/${id}/stats?${periodQuery(p)}`),
-  realtime: (id: string) => request<{ online: number }>('GET', `/api/sites/${id}/realtime`),
+  realtime: (id: string) => request<Realtime>('GET', `/api/sites/${id}/realtime`),
 }
 
 export type Loaded<T> = {

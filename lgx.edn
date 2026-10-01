@@ -60,6 +60,10 @@
   {:doc "Build the dashboard into resources/public/app"
    :do {:sh "cd ui && npm run build"}}
 
+  ui-test
+  {:doc "Run the dashboard's unit tests (its wording helpers)"
+   :do {:sh "cd ui && npm test"}}
+
   ;; `lgx build` builds the dashboard first, so the binary always carries
   ;; the current one. `lgx lgx:build` is the bare binary build.
   build
@@ -84,6 +88,7 @@
         {:sh "scripts/docker-smoke.sh"}]}
 
   check
-  {:doc "Unit tests, then the browser tests"
+  {:doc "Unit tests, the dashboard's unit tests, then the browser tests"
    :do [{:task lgx:test}
+        {:task ui-test}
         {:task e2e}]}}}

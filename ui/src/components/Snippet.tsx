@@ -10,12 +10,12 @@ export default function Snippet() {
     setTimeout(() => setCopied(false), 1600)
   }
   return (
-    <div className="flex items-stretch border border-hairline bg-card">
+    <div className="flex items-stretch overflow-hidden rounded-lg border border-hairline bg-surface">
       <code className="flex-1 overflow-x-auto px-4 py-3 font-mono text-[13px] whitespace-nowrap text-ink">
         {tag}
       </code>
       <button onClick={copy}
-        className="border-l border-hairline px-4 text-sm text-accent transition-colors hover:bg-accent-soft">
+        className="border-l border-hairline px-4 text-sm font-medium text-ink transition-colors hover:bg-accent-soft">
         {copied ? 'Copied' : 'Copy'}
       </button>
     </div>

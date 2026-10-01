@@ -4,8 +4,8 @@ Self-hosted, cookie-less web analytics from a single binary. A tiny
 tracker script (about 2 KB) sends page views and custom events to a
 [let-go](https://github.com/nooga/let-go) server that stores them in
 [DuckDB](https://duckdb.org) and serves a dashboard for several sites:
-visitors, pageviews, a timeseries, top pages, referrers, countries,
-browsers, OS, devices, custom events, and who is online now. No cookies on tracked
+visitors, pageviews, bounce rate, a timeseries, top pages, sources,
+countries, devices, browsers, OS, custom events, and who is online now. No cookies on tracked
 sites, one admin password for the dashboard. Built with
 [lgx](https://github.com/abogoyavlensky/lgx).
 
@@ -29,6 +29,7 @@ system). The DuckDB driver is cgo over a prebuilt static libduckdb, so:
 lgx run                 # http://localhost:8080, pagelet.duckdb in the cwd
 lgx test                # unit, route and whole-system tests
 lgx ui-install          # once: the dashboard's npm dependencies
+lgx ui-test             # the dashboard's unit tests (its wording)
 lgx build               # the dashboard, then bin/pagelet
 ./bin/pagelet
 ```
@@ -52,12 +53,24 @@ lgx run                 # the API on :8080
 lgx ui-dev              # Vite on :5173, proxying /api and /p.js to :8080
 ```
 
-Screens: sign-in, the list of sites (with who is online), and a site's
-dashboard: headline numbers, a timeseries (hourly for one day, daily
-otherwise), and top-ten lists of pages, referrers, countries, browsers,
-OS, devices and custom events, over today, the last 7 or 30 days, or a custom range.
-The period is in the URL. Settings rename a site or delete it with its
-events.
+One page per site, light or dark with the system. A small top bar holds
+the site switcher (every site, with who is on each now, and "Add
+website"), the period (today, the last 7 or 30 days, or a custom range of
+UTC days; it is in the URL), who is online with the pages they are on,
+and a `···` menu with the tracking code, the site's settings (move it to
+another domain, or delete it with its events) and sign-out. Below it: a
+sentence with the visitors, how they compare with the span just before
+(cut at the same time of day while today runs), the pageviews, views per
+visit and bounce rate, one line chart (hourly for one day, daily
+otherwise; the visitors and pageviews numbers switch it), and the top
+pages, sources, countries and devices (or browsers, or systems), each
+switchable between visitors and views, plus custom events when a site
+sends any. A visit is a visitor's day (see What is collected), and a
+bounce is a visitor whose only event in the period is one page view.
+
+A site is added by its domain alone. Until its first event arrives, its
+page shows the tracking code and waits; the first visit turns that into
+"You're live". `/` opens the site looked at last.
 
 ## Tracking a site
 
@@ -143,13 +156,14 @@ binary: `lgx e2e` builds the dashboard and `bin/pagelet`, starts it on
 port 8099 with a throwaway database under `e2e/.tmp`, and runs headless
 Chromium through a single-page app with the tracker (page views on load,
 `pushState` and Back, a custom event) and through the dashboard (sign-in,
-add a site, numbers arriving, periods, delete). Playwright stops the app
+add a site, its first visit, the numbers and lists, the metric and period
+switches, who is online, delete). Playwright stops the app
 when the run ends, so it coexists with an `lgx run` on 8080.
 
 ```
 lgx e2e-setup           # once: npm ci and the headless Chromium
 lgx e2e                 # build, run the specs, stop the app
-lgx check               # lgx test, then lgx e2e
+lgx check               # lgx test, lgx ui-test, then lgx e2e
 ```
 
 ## Docker
@@ -159,13 +173,14 @@ built outside it, as quickmeet does. `lgx docker` builds the binary, then
 the image, starts it and checks `/api/health`. The binary must be built on
 a glibc no newer than trixie's 2.41 (CI builds on ubuntu-24.04, 2.39, pinned for this reason); see
 docs/KNOWLEDGE.md. CI (`.github/workflows/test.yml`) runs the unit tests,
-the browser tests and this smoke test on every push.
+the dashboard's unit tests, the browser tests and this smoke test on every
+push.
 
 ## Limitations
 
 - Reports are in UTC; there is no local-timezone view.
 - No data retention or rollups: events are kept until their site is deleted.
-- No bounce rate or time on page.
+- No time on page.
 - Countries are only as accurate as the visitor's time zone setting; there
   is no region or city view.
 - One admin password; no accounts.
