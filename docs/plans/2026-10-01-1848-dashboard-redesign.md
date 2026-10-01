@@ -257,6 +257,8 @@ Work on a branch: `git switch -c dashboard-redesign` first.
 - [ ] **Step 6: Commit**
   `git commit -m "Stats: bounce rate, the previous span, has_events, pages online now"`
 
+> Deviation: the `bounces` test has four visitors (the step's "three" was a slip; 1 bounce in 4 is the 25 it expects). `totals` now groups by visitor in a CTE so one query yields both the old numbers and the bounce rate; `pageviews` is cast to `bigint` because DuckDB's `sum` returns a HUGEINT.
+
 ### Task 2: Sites by domain alone
 
 **Files:**
