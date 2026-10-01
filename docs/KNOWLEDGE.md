@@ -15,7 +15,7 @@ claim goes stale, fix or delete it: a missing note beats a wrong one.
 | `github.com/mileusna/useragent` | v1.3.5 | user agent parsing, generated bindings (`:go/interop`) |
 | integrant, ruuter | 1.0.1, v2.1.1 | components, routing |
 | React, react-router, Recharts | 19, 7.18, 3 | the dashboard in `ui/` (Vite 8, TypeScript 6, Tailwind 4) |
-| Fraunces, IBM Plex Sans | fontsource 5.3 | the dashboard's fonts, shipped as files in the binary |
+| Newsreader, IBM Plex Sans | fontsource 5.3 | the dashboard's fonts, shipped as files in the binary |
 | @playwright/test | 1.56.0 | browser tests in `e2e/`, on `chromium_headless_shell-1194` |
 
 ## The useragent bindings (2026-09-30)
@@ -119,6 +119,43 @@ byte (`curl ... | cmp - resources/public/app/<font>`), and headless
 Chromium loaded "Fraunces Variable" and "IBM Plex Sans" 400/500 from it.
 So fonts ship as files under `/app/`, served as `font/woff2` / `font/woff`;
 no `assetsInlineLimit` change.
+
+On 2026-10-01 Fraunces gave way to Newsreader
+(`@fontsource-variable/newsreader/opsz.css`, family "Newsreader
+Variable", weights 200-800 with the optical-size axis). Its three woff2
+files (latin, latin-ext, vietnamese) came back from the binary byte for
+byte as `font/woff2`, and Chromium loaded "Newsreader Variable" and Plex
+400/500.
+
+## The redesigned dashboard (2026-10-01)
+
+- Recharts passes `stroke="var(--color-accent)"` and tick `fill` through
+  as SVG attributes, and Chromium resolves the variables there (computed
+  `rgb(91,109,91)` light, `rgb(157,178,157)` dark), so the chart follows
+  the dark theme with no JavaScript.
+- `node --test test/` on Node 24.20 treats the directory as a file and
+  fails; `node --test "test/*.test.ts"` works. Node runs the `.ts` files
+  directly (type stripping) as long as imports name the `.ts` file and
+  type imports are `import type`; `ui/src/format.ts` keeps no runtime
+  imports for that reason.
+- No DuckDB CLI or Python module on the dev box. To seed a scratch
+  database with backdated events, a throwaway script run with
+  `lgx run script.lg <file>` can use `duckdb.core`, `pagelet.db` and
+  `pagelet.migrations` with the server stopped. The ingest endpoint
+  cannot backdate: it stamps events with the current time.
+- The binary embeds the dashboard, so a UI change needs `lgx build` (or
+  `lgx ui-build` then `lgx lgx:build`) before checking it against
+  `bin/pagelet`; building while that binary runs fails with "text file
+  busy".
+- Playwright scrolls an element into view before clicking it, and it did
+  so for a menu item still in its 120 ms open animation, moving the page
+  by 162 px. A person clicking cannot cause this; a test that reads scroll
+  positions after such a click should wait for the menu first.
+- Once, a Playwright run left its `../bin/pagelet` web server orphaned
+  (parent pid 1) on 8099, and the next run refused to start ("already
+  used"). Check `ss -ltnp | grep 8099` before rerunning.
+- `totals` casts `sum(pageviews)` to `bigint`: DuckDB's `sum` over a
+  BIGINT is a HUGEINT (how the driver would return one was not checked).
 
 ## Docker image (2026-09-30)
 

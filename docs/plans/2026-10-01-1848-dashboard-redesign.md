@@ -453,9 +453,9 @@ Read `/dataviz` before changing the chart.
 **Files:**
 - Modify: `README.md`, `docs/KNOWLEDGE.md`
 
-- [ ] **Step 1: README**: rewrite the "Screens:" paragraph under "The dashboard" for the new shape (sign-in; one page per site with the site switcher, period menu, who is online and on which pages, the headline numbers including bounce rate and the comparison with the span before, the chart, and the lists; adding a site by its domain and the waiting state; tracking code and settings behind the `···` menu; light and dark). Mention `lgx ui-test` beside the other commands, and in "what is collected" or the nearest fitting place, one line defining bounce (a visitor-day whose only event is one pageview) if the README defines the other numbers. Fix any other line that names Fraunces or the sites list.
+- [x] **Step 1: README**: rewrite the "Screens:" paragraph under "The dashboard" for the new shape (sign-in; one page per site with the site switcher, period menu, who is online and on which pages, the headline numbers including bounce rate and the comparison with the span before, the chart, and the lists; adding a site by its domain and the waiting state; tracking code and settings behind the `···` menu; light and dark). Mention `lgx ui-test` beside the other commands, and in "what is collected" or the nearest fitting place, one line defining bounce (a visitor-day whose only event is one pageview) if the README defines the other numbers. Fix any other line that names Fraunces or the sites list.
 
-- [ ] **Step 2: KNOWLEDGE**: the stack table's font row (Newsreader, IBM Plex Sans) and the "Fonts through the binary" note, dated, with what Task 9 Step 3 found; a short dated note on anything learned (for example whether `var()` works in Recharts' SVG attributes, and `node --test` running `.ts` directly on Node 24).
+- [x] **Step 2: KNOWLEDGE**: the stack table's font row (Newsreader, IBM Plex Sans) and the "Fonts through the binary" note, dated, with what Task 9 Step 3 found; a short dated note on anything learned (for example whether `var()` works in Recharts' SVG attributes, and `node --test` running `.ts` directly on Node 24).
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
   `git commit -m "docs: the redesigned dashboard"`
