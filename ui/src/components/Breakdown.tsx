@@ -9,9 +9,11 @@ type Unit = 'visitors' | 'pageviews'
 /**
  * A top list in the open: no box, a title, then one row per entry with the
  * entry's number and a thin accent rule as long as its share of the
- * longest. The unit word in the header switches the list between visitors
- * and views. Share lists (countries, devices) also show each entry's
- * percentage of the period's total. Six rows, then "Show N more".
+ * longest. The unit word in the header switches the number between
+ * visitors and views; the order stays the server's (the top ten by
+ * visitors), since re-ranking those ten by views would pass for a top ten
+ * by views that it is not. Share lists (countries, devices) also show each
+ * entry's percentage of the period's total. Six rows, then "Show N more".
  */
 export default function Breakdown({ title, testId, rows, totals, label = (n) => n }: {
   title: ReactNode
@@ -21,9 +23,6 @@ export default function Breakdown({ title, testId, rows, totals, label = (n) => 
   label?: (name: string) => string
 }) {
   const [unit, setUnit] = useState<Unit>('visitors')
-  const sorted = unit === 'visitors'
-    ? rows
-    : [...rows].sort((a, b) => b.pageviews - a.pageviews || a.name.localeCompare(b.name))
   const other: Unit = unit === 'visitors' ? 'pageviews' : 'visitors'
   return (
     <List title={title} testId={testId}
@@ -34,7 +33,7 @@ export default function Breakdown({ title, testId, rows, totals, label = (n) => 
           {unit === 'visitors' ? 'visitors' : 'views'}
         </button>
       }
-      items={sorted.map((r) => ({
+      items={rows.map((r) => ({
         key: r.name,
         name: label(r.name),
         value: r[unit],

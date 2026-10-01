@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { Site } from '../api'
+import { useSignedOutOn } from '../session'
 import Snippet from './Snippet'
 
 const EVERY_MS = 5_000
@@ -17,12 +18,16 @@ export default function Waiting<T extends { stats: { has_events: boolean } }>({ 
   onOpen: (report: T) => void
 }) {
   const [live, setLive] = useState<T>()
+  // A 401 here means the session ended while waiting: sign out like any
+  // other request would, instead of waiting forever.
+  const [failed, setFailed] = useState<unknown>()
+  useSignedOutOn(failed)
 
   useEffect(() => {
     if (live) return
     let on = true
     let timer: ReturnType<typeof setInterval> | undefined
-    const poll = () => load().then((r) => { if (on && r.stats.has_events) setLive(r) }, () => {})
+    const poll = () => load().then((r) => { if (on && r.stats.has_events) setLive(r) }, (e) => { if (on) setFailed(e) })
     const start = () => { if (!timer) { poll(); timer = setInterval(poll, EVERY_MS) } }
     const stop = () => { clearInterval(timer); timer = undefined }
     const onVisibility = () => (document.hidden ? stop() : start())
