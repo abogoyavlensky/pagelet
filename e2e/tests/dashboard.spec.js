@@ -22,7 +22,7 @@ test('sign in, add a site, see its first visit and numbers, delete it', async ({
   await page.fill('#site-domain', domain);
   await page.getByRole('button', { name: 'Add website' }).click();
   await expect(page).toHaveURL(/\/sites\/[0-9a-f]{12}$/);
-  const siteUrl = page.url();
+  const sitePath = new URL(page.url()).pathname;
   const waiting = page.getByTestId('waiting');
   await expect(waiting).toBeVisible();
   await expect(waiting).toContainText('<script defer src=');
@@ -91,5 +91,6 @@ test('sign in, add a site, see its first visit and numbers, delete it', async ({
   await remove.click();
   const sites = await (await listed).json();
   expect(sites.map((s) => s.domain)).not.toContain(domain);
-  await expect(page).not.toHaveURL(siteUrl);
+  // Away from its dashboard, whatever the query.
+  await expect(page).not.toHaveURL(new RegExp(`${sitePath}(\\?|$)`));
 });
