@@ -1,10 +1,11 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router'
 import { api, useApi, type Period, type Stats } from '../api'
-import RankedList from '../components/RankedList'
-import StatRow, { type Metric } from '../components/StatRow'
+import Breakdown, { Events } from '../components/Breakdown'
+import Headline, { type Metric } from '../components/Headline'
 import Timeseries from '../components/Timeseries'
 import TopBar from '../components/TopBar'
+import Waiting from '../components/Waiting'
 import { country } from '../format'
 import { LAST_SITE, useSignedOutOn } from '../session'
 
@@ -21,15 +22,26 @@ function periodKey(p: Period) {
   return p.period === 'custom' ? `custom:${p.from}:${p.to}` : p.period
 }
 
+/** A report and the period it was asked for, so its wording never claims another. */
+type Report = { stats: Stats; period: Period }
+
 export default function Site() {
   const { id = '' } = useParams()
   const [query, setQuery] = useSearchParams()
   const period = readPeriod(query)
+  const key = periodKey(period)
   const [metric, setMetric] = useState<Metric>('visitors')
 
   const sites = useApi(() => api.sites(), [])
-  const stats = useApi(() => api.stats(id, period), [id, periodKey(period)])
-  useSignedOutOn(sites.error ?? stats.error)
+  const load = useCallback(
+    () => api.stats(id, period).then((stats): Report => ({ stats, period })),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [id, key],
+  )
+  const report = useApi(load, [load])
+  // The answer that showed the first visit, until a fresh report has events.
+  const [first, setFirst] = useState<Report>()
+  useSignedOutOn(sites.error ?? report.error)
   const site = sites.data?.find((s) => s.id === id)
 
   useEffect(() => { if (site) localStorage.setItem(LAST_SITE, site.id) }, [site])
@@ -52,54 +64,79 @@ export default function Site() {
     )
   }
 
+  const shown = first && report.data && !report.data.stats.has_events ? first : report.data
+  const waiting = shown !== undefined && !shown.stats.has_events
+
   return (
     <div>
-      <TopBar sites={sites.data} site={site} period={period} onPeriod={choose} live onSaved={sites.reload} />
+      <TopBar sites={sites.data} site={site} period={period} onPeriod={choose} live={!waiting}
+        onSaved={sites.reload} />
 
-      {/* A failed load keeps the last report on screen, marked as such, so
-          old numbers never pass for the period that was asked for. */}
-      {stats.error && (
-        <p role="alert" className="pb-6 text-sm text-danger">
-          Could not load this period: {stats.error.message}.
-          {stats.data && ' Showing the previous one.'}{' '}
-          <button onClick={stats.reload} className="underline underline-offset-2">Retry</button>
+      {/* A failed load keeps the last report on screen, dimmed and marked as
+          such, still worded for the period it was loaded for. */}
+      {report.error && (
+        <p role="alert" className="pb-8 text-sm text-danger">
+          Could not load this period: {report.error.message}.
+          {shown && ' Showing the previous one.'}{' '}
+          <button onClick={report.reload} className="underline underline-offset-2">Retry</button>
         </p>
       )}
 
-      {stats.data && (
-        <Report stats={stats.data} metric={metric} onMetric={setMetric}
-          dim={stats.loading || !!stats.error} />
+      {waiting && <Waiting site={site} load={load} onOpen={setFirst} />}
+      {shown && !waiting && (
+        <Body report={shown} metric={metric} onMetric={setMetric} dim={report.loading || !!report.error} />
       )}
     </div>
   )
 }
 
-function Report({ stats, metric, onMetric, dim }: {
-  stats: Stats
+const DEVICE_VIEWS = [
+  { key: 'devices', label: 'Devices' },
+  { key: 'browsers', label: 'Browsers' },
+  { key: 'os', label: 'Systems' },
+] as const
+
+const capitalised = (s: string) => s.charAt(0).toUpperCase() + s.slice(1)
+
+function Body({ report, metric, onMetric, dim }: {
+  report: Report
   metric: Metric
   onMetric: (m: Metric) => void
   dim: boolean
 }) {
-  const rows = (list: Stats['pages']) => list.map((r) => ({ name: r.name, a: r.visitors, b: r.pageviews }))
-  const vp: [string, string] = ['Visitors', 'Views']
+  const { stats, period } = report
+  const [devices, setDevices] = useState<(typeof DEVICE_VIEWS)[number]['key']>('devices')
+  const fade = `transition-opacity ${dim ? 'opacity-50' : ''}`
+
+  if (stats.totals.visitors === 0) {
+    return <div className={fade}><Headline stats={stats} period={period} metric={metric} onMetric={onMetric} /></div>
+  }
+
+  const totals = { visitors: stats.totals.visitors, pageviews: stats.totals.pageviews }
+  const deviceTitle = (
+    <span className="flex gap-3">
+      {DEVICE_VIEWS.map((v) => (
+        <button key={v.key} type="button" aria-pressed={devices === v.key} onClick={() => setDevices(v.key)}
+          className={`rounded-sm transition-colors ${devices === v.key ? 'text-ink' : 'font-normal text-muted hover:text-ink'}`}>
+          {v.label}
+        </button>
+      ))}
+    </span>
+  )
+
   return (
-    <div className={`transition-opacity ${dim ? 'opacity-50' : ''}`}>
-      <div>
-        <StatRow totals={stats.totals} metric={metric} onMetric={onMetric} />
-      </div>
-      <div className="pt-8">
+    <div className={fade}>
+      <Headline stats={stats} period={period} metric={metric} onMetric={onMetric} />
+      <div className="mt-14">
         <Timeseries data={stats.timeseries} metric={metric} />
       </div>
-      <div className="grid gap-x-14 gap-y-12 pt-14 min-[720px]:grid-cols-2">
-        <RankedList title="Pages" columns={vp} items={rows(stats.pages)} />
-        <RankedList title="Referrers" columns={vp} items={rows(stats.referrers)} />
-        <RankedList title="Countries" columns={vp}
-          items={rows(stats.countries).map((r) => ({ ...r, name: country(r.name) }))} />
-        <RankedList title="Browsers" columns={vp} items={rows(stats.browsers)} />
-        <RankedList title="OS" columns={vp} items={rows(stats.os)} />
-        <RankedList title="Devices" columns={vp} items={rows(stats.devices)} />
-        <RankedList title="Events" columns={['Count', 'Visitors']}
-          items={stats.events.map((e) => ({ name: e.name, a: e.count, b: e.visitors }))} />
+      <div className="mt-16 grid gap-x-16 gap-y-12 min-[720px]:grid-cols-2">
+        <Breakdown title="Pages" testId="pages" rows={stats.pages} />
+        <Breakdown title="Sources" testId="sources" rows={stats.referrers} />
+        <Breakdown title="Countries" testId="countries" rows={stats.countries} totals={totals} label={country} />
+        <Breakdown key={devices} title={deviceTitle} testId="devices" rows={stats[devices]} totals={totals}
+          label={devices === 'devices' ? capitalised : undefined} />
+        {stats.events.length > 0 && <Events rows={stats.events} />}
       </div>
     </div>
   )

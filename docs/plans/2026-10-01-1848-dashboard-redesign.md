@@ -374,20 +374,22 @@ Read `/frontend-design` before writing components. Everything here follows the D
 
 Read `/dataviz` before changing the chart.
 
-- [ ] **Step 1: `Headline`** per "Headline and small stats", using Task 4's functions; it exports the `Metric` type that `Timeseries` imports.
+- [x] **Step 1: `Headline`** per "Headline and small stats", using Task 4's functions; it exports the `Metric` type that `Timeseries` imports.
 
-- [ ] **Step 2: `Timeseries`** per "Chart". Check in both colour schemes that the line, ticks and tooltip take the variables; if an SVG attribute does not resolve `var()`, pass the same value through the element's `style` instead.
+- [x] **Step 2: `Timeseries`** per "Chart". Check in both colour schemes that the line, ticks and tooltip take the variables; if an SVG attribute does not resolve `var()`, pass the same value through the element's `style` instead.
 
-- [ ] **Step 3: `Breakdown`** per "Breakdowns" (props: title or a header node for the Devices switch, rows of `{name, visitors, pageviews}`, an optional total pair that makes it a share list; Events passes its two fixed columns instead), and the section composition in `Site.tsx`: Pages and Sources in the first row, Countries and Devices (with its switch) in the second, Events below when non-empty.
+- [x] **Step 3: `Breakdown`** per "Breakdowns" (props: title or a header node for the Devices switch, rows of `{name, visitors, pageviews}`, an optional total pair that makes it a share list; Events passes its two fixed columns instead), and the section composition in `Site.tsx`: Pages and Sources in the first row, Countries and Devices (with its switch) in the second, Events below when non-empty.
 
-- [ ] **Step 4: `Waiting`** per "Waiting state", and the three body states in `Site.tsx`: `has_events` false → `Waiting` (top bar without period and online); visitors 0 → the "Nobody visited …" sentence alone; otherwise the full body. `Waiting` holds the polled answer itself and shows "You're live" until "View dashboard" is clicked; an answer with `has_events: true` must not swap the body on its own. Keep the existing behaviours: the last report stays, dimmed, while a period loads (remember the period each report was loaded for and word the headline from that one, not from the URL, so a dimmed or failed-over report never claims the new period); a failed load shows the alert with Retry (`Site.tsx:109-117`), now in `text-danger`.
+- [x] **Step 4: `Waiting`** per "Waiting state", and the three body states in `Site.tsx`: `has_events` false → `Waiting` (top bar without period and online); visitors 0 → the "Nobody visited …" sentence alone; otherwise the full body. `Waiting` holds the polled answer itself and shows "You're live" until "View dashboard" is clicked; an answer with `has_events: true` must not swap the body on its own. Keep the existing behaviours: the last report stays, dimmed, while a period loads (remember the period each report was loaded for and word the headline from that one, not from the URL, so a dimmed or failed-over report never claims the new period); a failed load shows the alert with Retry (`Site.tsx:109-117`), now in `text-danger`.
 
-- [ ] **Step 5: Build**
+- [x] **Step 5: Build**
   Run: `cd ui && npm run build && npm run lint && npm test`
   Expected: all succeed; `grep -rn "rise\|display-num\|bg-card\|red-800\|uppercase" ui/src` prints nothing.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
   `git commit -m "Dashboard: a sentence, one line and four open lists"`
+
+> Deviation: the headline sentence carries `data-testid="headline"` (Task 8 reads it; the Design never named it) and uses `text-wrap: balance` so no word sits alone on a line. `Breakdown.tsx` also exports `Events`; a list switched to views re-sorts by views. `Waiting` is generic over the page's report (`{stats, period}`, so a dimmed or failed-over report keeps the wording of the period it was loaded for) and hands back the answer that showed the first visit. `var()` resolves in Recharts' SVG attributes in Chromium (checked: the line is `rgb(91,109,91)` light and `rgb(157,178,157)` dark). `/dataviz`'s validator passes contrast for the accent on both surfaces; its chroma and dark lightness-band checks fail, but they are scoped to categorical palettes, and the brief asks for a muted accent (it also allows a serif hero number, which `/dataviz` advises against; the brief wins). Step 5's grep still matches `Login.tsx`, which Task 7 rewrites.
 
 ### Task 7: The sign-in page
 

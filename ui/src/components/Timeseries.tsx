@@ -1,19 +1,19 @@
-import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
+import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import type { Stats } from '../api'
 import { count, longDate, tick } from '../format'
-import type { Metric } from './StatRow'
+import type { Metric } from './Headline'
 
-// One series, so no legend: the pressed stat above names it. Marks follow
-// the dataviz specs: a 2px line, a ~10% wash, hairline solid grid, a
-// hairline crosshair, and a hover dot ringed in the surface color. Text is
-// ink and muted, never the accent. No draw-in animation: the page's only
-// motion is the load stagger, the online pulse and hover.
-const ACCENT = '#0f766e'
-const HAIRLINE = '#e4e0d6'
-const MUTED = '#6f6b63'
-const PAPER = '#f6f4ee'
+// One quiet line: 2px in the accent, no fill and no grid, a hairline
+// baseline, three muted y ticks, and a hover readout of both numbers. One
+// series, so no legend: the underlined number above names it. Colours are
+// the theme's CSS variables, so the dark theme needs nothing here. Switching
+// metric fades the line in; there is no draw-in.
+const ACCENT = 'var(--color-accent)'
+const HAIRLINE = 'var(--color-hairline)'
+const MUTED = 'var(--color-muted)'
+const PAPER = 'var(--color-paper)'
 
-const LABELS: Record<Metric, string> = { visitors: 'Visitors', pageviews: 'Pageviews' }
+const LABELS: Record<Metric, string> = { visitors: 'visitors', pageviews: 'pageviews' }
 
 type Point = Stats['timeseries'][number]
 
@@ -26,16 +26,16 @@ function Readout({ active, payload, metric }: {
   const p = payload[0].payload
   const other: Metric = metric === 'visitors' ? 'pageviews' : 'visitors'
   return (
-    <div className="border border-hairline bg-surface px-3 py-2 text-sm shadow-[0_8px_24px_-12px_#1b1a1740]">
+    <div className="rounded-lg border border-hairline bg-surface px-3 py-2 text-sm shadow-float">
       <p className="text-xs text-muted">{longDate(p.t)}</p>
       <p className="mt-1 flex items-center gap-2">
-        <span className="inline-block h-0.5 w-3 bg-accent" />
+        <span className="inline-block h-0.5 w-3 rounded-full bg-accent" />
         <strong className="num font-medium text-ink">{count(p[metric])}</strong>
-        <span className="text-muted">{LABELS[metric].toLowerCase()}</span>
+        <span className="text-muted">{LABELS[metric]}</span>
       </p>
       <p className="flex items-center gap-2 pl-5">
         <span className="num text-ink">{count(p[other])}</span>
-        <span className="text-muted">{LABELS[other].toLowerCase()}</span>
+        <span className="text-muted">{LABELS[other]}</span>
       </p>
     </div>
   )
@@ -45,28 +45,22 @@ export default function Timeseries({ data, metric }: { data: Stats['timeseries']
   const every = data.length > 16 ? Math.ceil(data.length / 8) - 1 : data.length > 8 ? 1 : 0
   return (
     <figure>
-      <figcaption className="sr-only">{LABELS[metric]} over the period</figcaption>
-      <div className="h-64" aria-hidden>
+      <figcaption className="sr-only">{metric === 'visitors' ? 'Visitors' : 'Pageviews'} over the period</figcaption>
+      <div key={metric} className="fade h-60" aria-hidden>
         <ResponsiveContainer width="100%" height="100%">
-          <AreaChart data={data} margin={{ top: 12, right: 28, bottom: 0, left: 0 }}>
-            <defs>
-              <linearGradient id="wash" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor={ACCENT} stopOpacity={0.14} />
-                <stop offset="100%" stopColor={ACCENT} stopOpacity={0.04} />
-              </linearGradient>
-            </defs>
-            <CartesianGrid vertical={false} stroke={HAIRLINE} />
+          <LineChart data={data} margin={{ top: 8, right: 12, bottom: 0, left: 0 }}>
             <XAxis dataKey="t" tickFormatter={tick} interval={every} tickLine={false}
-              axisLine={{ stroke: HAIRLINE }} tick={{ fill: MUTED, fontSize: 12 }} dy={6} />
-            <YAxis allowDecimals={false} tickLine={false} axisLine={false} width={40}
+              axisLine={{ stroke: HAIRLINE }} tick={{ fill: MUTED, fontSize: 12 }} dy={8} />
+            <YAxis allowDecimals={false} tickCount={3} tickLine={false} axisLine={false} width={40}
               tick={{ fill: MUTED, fontSize: 12 }} tickFormatter={(v: number) => count(v)} />
-            <Tooltip cursor={{ stroke: MUTED, strokeWidth: 1 }} isAnimationActive={false}
+            <Tooltip cursor={{ stroke: HAIRLINE, strokeWidth: 1 }} isAnimationActive={false}
+              wrapperStyle={{ outline: 'none' }}
               content={(props) => <Readout {...(props as object)} metric={metric} />} />
-            <Area type="monotone" dataKey={metric} stroke={ACCENT} strokeWidth={2}
-              strokeLinejoin="round" strokeLinecap="round" fill="url(#wash)"
+            <Line type="monotone" dataKey={metric} stroke={ACCENT} strokeWidth={2}
+              strokeLinejoin="round" strokeLinecap="round" dot={false}
               activeDot={{ r: 4.5, fill: ACCENT, stroke: PAPER, strokeWidth: 2 }}
               isAnimationActive={false} />
-          </AreaChart>
+          </LineChart>
         </ResponsiveContainer>
       </div>
       {/* The same numbers as a table, for screen readers. */}
