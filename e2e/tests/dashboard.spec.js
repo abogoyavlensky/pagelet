@@ -48,6 +48,26 @@ test('sign in, add a site, see its first visit and numbers, delete it', async ({
   await expect(countries).toContainText('Netherlands');
   await expect(countries).toContainText('100%');
 
+  // No time measured yet; then a beacon of 90 s on /pricing fills the tile
+  // and the page's Time column.
+  const duration = page.getByTestId('stat-duration');
+  await expect(duration).toContainText('Visit duration');
+  await expect(duration).toContainText('–');
+  await expect(duration).toContainText('Not measured in this period');
+  const res = await request.post('/api/event', {
+    headers: { 'Content-Type': 'text/plain' },
+    data: JSON.stringify({ d: domain, u: `https://${domain}/pricing`, e: 90000 }),
+  });
+  expect(res.status()).toBe(202);
+  const siteId = page.url().match(/\/sites\/([0-9a-f]{12})/)[1];
+  await expect.poll(async () =>
+    (await (await page.request.get(`/api/sites/${siteId}/stats?period=7d`)).json()).totals.visit_duration).toBe(90);
+  await page.reload();
+  await expect(duration).toContainText('1m 30s');
+  const pages = page.getByTestId('panel-pages');
+  await expect(pages.locator('li')).toHaveCount(3);
+  await expect(pages.locator('li', { hasText: '/pricing' })).toContainText('1m 30s');
+
   // The Right now card asks on mount and then every 15 s; its first answer
   // can come from just before the flush, so allow one more poll.
   await expect(page.getByTestId('online-now')).toContainText(/1\s*person online/, { timeout: 20_000 });

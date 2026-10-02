@@ -95,3 +95,11 @@ export function share(part: number, whole: number): string {
   const pct = (part / whole) * 100
   return pct < 0.5 ? '<1%' : `${Math.round(pct)}%`
 }
+
+/** Whole seconds as "45s", "1m 24s" or "1h 5m". */
+export function duration(seconds: number): string {
+  const s = Math.max(0, Math.round(seconds))
+  if (s < 60) return `${s}s`
+  if (s < 3600) return `${Math.floor(s / 60)}m ${s % 60}s`
+  return `${Math.floor(s / 3600)}h ${Math.floor((s % 3600) / 60)}m`
+}

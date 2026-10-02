@@ -12,7 +12,7 @@ commands, the configuration and what is collected.
   dashboard and the binary first), `lgx ui-dev` beside `lgx run` for UI work.
 - The request path must not bind dynamic vars and must not run SQL directly:
   `db.lg`, `stats.lg` and `auth.lg` own the queries, `ingest.lg` owns every
-  write to `events`.
+  write to `events` and `engagements`.
 - The dashboard's types in `ui/src/api.ts` mirror the JSON from `stats.lg`
   and `routes.lg`; change both together.
 

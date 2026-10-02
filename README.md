@@ -1,11 +1,12 @@
 # pagelet
 
 Self-hosted, cookie-less web analytics from a single binary. A tiny
-tracker script (about 2 KB) sends page views and custom events to a
-[let-go](https://github.com/nooga/let-go) server that stores them in
-[DuckDB](https://duckdb.org) and serves a dashboard for several sites:
-visitors, pageviews, bounce rate, a timeseries, top pages, sources,
-countries, devices, browsers, OS, custom events, and who is online now. No cookies on tracked
+tracker script (under 4 KB) sends page views, custom events and time on
+page to a [let-go](https://github.com/nooga/let-go) server that stores
+them in [DuckDB](https://duckdb.org) and serves a dashboard for several
+sites: visitors, pageviews, bounce rate, visit duration, a timeseries, top
+pages with time on page, sources, countries, devices, browsers, OS,
+custom events, and who is online now. No cookies on tracked
 sites, one admin password for the dashboard. Built with
 [lgx](https://github.com/abogoyavlensky/lgx).
 
@@ -61,17 +62,21 @@ button that switches sites, the period as tabs: today, 7 or 30 days, or a
 custom range of UTC days kept in the URL, then Refresh, Settings and
 sign-out) over a grid of cards:
 
-- visitors, pageviews, views per visit and bounce rate, each with the
-  change against the span just before (cut at the same time of day while
-  today runs);
+- visitors, pageviews, views per visit, bounce rate and visit duration,
+  each with the change against the span just before (cut at the same time
+  of day while today runs);
 - the traffic chart (hourly for one day, daily otherwise), switchable
   between visitors and pageviews, beside who is online now and on which
   pages;
-- top pages and sources (visitors and views), countries, and devices,
+- top pages (visitors, views and time on page) and sources (visitors and
+  views), countries, and devices,
   browsers or systems (visitors and share), and custom events.
 
 A visit is a visitor's day (see What is collected), and a bounce is a
-visitor whose only event in the period is one page view. Settings hold the
+visitor whose only event in the period is one page view. Visit duration
+is the average time the site's pages were visible to a visit, and time on
+page the time a page was visible per visitor who saw it; both count only
+the visits the tracker measured, and show "–" when none was. Settings hold the
 tracking code, the domain, whether the dashboard is public, and deleting
 the site with its events. A site
 is added by its domain alone; until its first event arrives, its page
@@ -105,8 +110,12 @@ counted with it), then put this in every page's `<head>`:
 <script defer src="https://analytics.example.com/p.js"></script>
 ```
 
-The script is about 2 KB, sets no cookies, and posts each page view to
-`/api/event` on the same host it was loaded from. Single-page apps are
+The script is under 4 KB, sets no cookies, and posts each page view to
+`/api/event` on the same host it was loaded from. When a page view ends or
+the tab is hidden, it also posts how long the page was visible. It adds no
+scroll or timer listeners, keeps the page in the back/forward cache, and
+never throws into the page: a tracker failure cannot break the site's
+navigation or its `pagelet()` calls. Single-page apps are
 covered: `history.pushState`, `replaceState` and the back button count as
 page views when the path changes.
 
@@ -170,6 +179,9 @@ The country comes from the time zone the browser reports
 (`Europe/Amsterdam` is the Netherlands), never from the IP address. A
 browser that reports `UTC`, or a zone that names no country, has none.
 
+Per engagement (the time a page was visible): the site, the time (UTC),
+the visitor id, the path, and the visible milliseconds; nothing else.
+
 Sessions for the dashboard use one cookie on the analytics host only
 (`HttpOnly`, `SameSite=Lax`, `Secure` behind TLS); tracked sites get none.
 
@@ -179,7 +191,9 @@ The unit tests stop at the handler. The browser tests drive the real
 binary: `lgx e2e` builds the dashboard and `bin/pagelet`, starts it on
 port 8099 (or `E2E_PORT`) with a throwaway database under `e2e/.tmp`, and runs headless
 Chromium through a single-page app with the tracker (page views on load,
-`pushState` and Back, a custom event) and through the dashboard (sign-in,
+`pushState` and Back, a custom event, time on page through a navigation
+and leaving the page, and a failing tracker that must not break the page)
+and through the dashboard (sign-in,
 add a site, its first visit, the numbers and lists, the metric and period
 switches, who is online, delete; a public site read without a session,
 and closed again; refreshing by button, by the minute, on return to the
@@ -206,7 +220,9 @@ push.
 
 - Reports are in UTC; there is no local-timezone view.
 - No data retention or rollups: events are kept until their site is deleted.
-- No time on page.
+- Time on page is time visible, not time active: a visible tab left open
+  counts, up to 30 minutes per stretch. A visit across UTC midnight counts
+  as two, since the visitor id changes. There is no scroll depth.
 - Countries are only as accurate as the visitor's time zone setting; there
   is no region or city view.
 - One admin password; no accounts.

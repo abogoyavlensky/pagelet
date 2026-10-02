@@ -77,6 +77,30 @@
   (is (contains? (parse {:d "example.com" :u "https://example.com/" :n (apply str (repeat 65 "a"))}) :error))
   (is (contains? (parse (str "{\"d\":\"example.com\",\"u\":\"" (apply str (repeat 4100 "a")) "\"}")) :error)))
 
+(deftest an-engagement-beacon
+  (is (= {:ok {:site-id "site1" :ip "1.2.3.4" :ua chrome :path "/pricing" :engaged-ms 12400}}
+         (parse {:d "example.com" :u "https://example.com/pricing?x=1" :e 12400})))
+  (is (integer? (get-in (parse {:d "example.com" :u "https://example.com/" :e 12400}) [:ok :engaged-ms])))
+  (is (= "/#/about" (get-in (parse {:d "example.com" :u "https://example.com/#/about" :h "#/about" :e 10})
+                            [:ok :path])))
+  ;; Capped at 30 minutes; a fraction is cut to whole milliseconds.
+  (is (= 1800000 (get-in (parse {:d "example.com" :u "https://example.com/" :e 5000000}) [:ok :engaged-ms])))
+  (is (= 1800000 (get-in (parse "{\"d\":\"example.com\",\"u\":\"https://example.com/\",\"e\":1e300}")
+                         [:ok :engaged-ms])))
+  (let [ms (get-in (parse {:d "example.com" :u "https://example.com/" :e 1500.7}) [:ok :engaged-ms])]
+    (is (integer? ms))
+    (is (= 1500 ms)))
+  ;; An e that is not a positive number is not an engagement.
+  (doseq [e [0 -5 0.4 "12" nil]]
+    (is (= {:error "invalid engagement"} (parse {:d "example.com" :u "https://example.com/" :e e})) (pr-str e)))
+  (is (= {:drop :unknown-site} (parse {:d "other.com" :u "https://other.com/" :e 100})))
+  (is (= {:drop :bot} (parse {:d "example.com" :u "https://example.com/" :e 100}
+                             {:remote-addr "1.2.3.4:1"
+                              :headers {"user-agent" "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)"}})))
+  ;; An e makes it an engagement, whatever else it carries.
+  (is (= {:site-id "site1" :ip "1.2.3.4" :ua chrome :path "/" :engaged-ms 100}
+         (:ok (parse {:d "example.com" :u "https://example.com/" :n "signup" :p {:plan "pro"} :e 100})))))
+
 ;; ---- the buffer ---------------------------------------------------------
 
 (defn- fresh-conn []
@@ -122,6 +146,29 @@
       (finally
         (is (= :done (ig/halt-key! ::ingest/buffer buffer)))
         (duckdb/close! conn)))))
+
+(deftest engagements-flush-into-their-own-table
+  (let [conn (fresh-conn)
+        buffer (ig/init-key ::ingest/buffer {:conn conn :interval-ms 60000})
+        engagement (fn [ip & [site-id]]
+                     {:site-id (or site-id "site1") :ip ip :ua chrome :path "/" :engaged-ms 4200})]
+    (ingest/enqueue! buffer (row "9.9.9.9" chrome))
+    (ingest/enqueue! buffer (row "8.8.8.8" chrome))
+    (ingest/enqueue! buffer (engagement "9.9.9.9"))
+    (ingest/enqueue! buffer (engagement "9.9.9.9" "deleted-site"))
+    (is (= 3 (ingest/flush! buffer)))
+    (let [events (db/query conn ["select visitor, ts::varchar as ts from events"])
+          [e & more] (db/query conn ["select *, ts::varchar as tsv from engagements"])]
+      (is (= 2 (count events)))
+      (is (nil? more))
+      (is (= {:site_id "site1" :path "/" :engaged_ms 4200}
+             (select-keys e [:site_id :path :engaged_ms])))
+      ;; The same visitor as that IP's page view, stamped by the same flush.
+      (is (some #(= (:visitor e) (:visitor %)) events))
+      (is (= (:tsv e) (:ts (first events))))
+      (is (not-any? #{"9.9.9.9" chrome} (vals e))))
+    (ig/halt-key! ::ingest/buffer buffer)
+    (duckdb/close! conn)))
 
 (deftest the-salt-follows-the-flush-day
   ;; A salt cached for another day is not used: flush! reads the day from

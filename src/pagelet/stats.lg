@@ -17,6 +17,11 @@
 ;; it (cut at the same point when the period is still running) and whether
 ;; the site has any event at all, which the dashboard uses to tell a new
 ;; site from a quiet period.
+;;
+;; Visit duration and time on page read `engagements`, the tracker's
+;; beacons of visible time, never `events`. Each beacon is a delta, so a
+;; visitor's time is the sum of theirs. Both average over the visitors who
+;; were measured: a visitor whose beacon was lost lowers neither.
 
 (def ^:private list-limit 10)
 
@@ -74,11 +79,23 @@
 (defn- in-period-params [site-id {:keys [from to-exclusive]}]
   [site-id from to-exclusive])
 
+(defn visit-duration
+  "The average visible time per measured visitor, in whole seconds; nil
+   when no visitor was measured."
+  [conn site-id p]
+  (:s (db/execute-one! conn
+                       (into [(str "select cast(round(avg(ms) / 1000) as integer) as s
+                                    from (select sum(engaged_ms) as ms from engagements
+                                          where " in-period "
+                                          group by visitor)")]
+                             (in-period-params site-id p)))))
+
 (defn totals
   "Visitors, pageviews, views per visitor and the bounce rate (a whole
-   percentage), from one row per visitor."
+   percentage), from one row per visitor, and the visit duration."
   [conn site-id p]
-  (db/execute-one! conn
+  (assoc
+   (db/execute-one! conn
                    (into [(str "with per_visitor as (
                                   select count(*) as events,
                                          count(*) filter (where name = 'pageview') as pageviews
@@ -94,7 +111,8 @@
                                                             / count(*)) as integer)
                                        end as bounce_rate
                                 from per_visitor")]
-                         (in-period-params site-id p))))
+                         (in-period-params site-id p)))
+   :visit_duration (visit-duration conn site-id p)))
 
 (defn- previous-period
   "The span of the same length just before `p`, ending as far into its
@@ -109,9 +127,10 @@
     {:from (:f row) :to-exclusive (:t row)}))
 
 (defn previous
-  "{:visitors :pageviews} over the span just before `p`."
+  "{:visitors :pageviews :visit_duration} over the span just before `p`."
   [conn site-id p now]
-  (select-keys (totals conn site-id (previous-period conn p now)) [:visitors :pageviews]))
+  (select-keys (totals conn site-id (previous-period conn p now))
+               [:visitors :pageviews :visit_duration]))
 
 (defn has-events?
   "Whether the site has any event at all."
@@ -170,7 +189,25 @@
 (def ^:private os* (ranked "os"))
 (def ^:private devices* (ranked "device"))
 
-(defn pages [conn site-id p] (named (pages* conn site-id p)))
+(defn- time-on-page
+  "path -> the visible time on it per measured visitor, whole seconds."
+  [conn site-id p]
+  (into {}
+        (map (juxt :path :time))
+        (db/query conn
+                  (into [(str "select path,
+                                      cast(round(sum(engaged_ms) / count(distinct visitor) / 1000)
+                                           as integer) as time
+                               from engagements where " in-period "
+                               group by path")]
+                        (in-period-params site-id p)))))
+
+(defn pages
+  "The top pages, each with its :time on page (nil when not measured)."
+  [conn site-id p]
+  (let [times (time-on-page conn site-id p)]
+    (mapv #(assoc % :time (get times (:name %)))
+          (named (pages* conn site-id p)))))
 (defn referrers [conn site-id p] (named (referrers* conn site-id p)))
 (defn countries [conn site-id p] (named (countries* conn site-id p)))
 (defn browsers [conn site-id p] (named (browsers* conn site-id p)))

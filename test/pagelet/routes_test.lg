@@ -143,20 +143,24 @@
         ;; Dropped on purpose: still 202. Not an event: 400.
         (is (= 202 (:status (event {:d "unknown.com" :u "https://unknown.com/"}))))
         (is (= 400 (:status (call handler :post "/api/event" "nope"))))
+        ;; An engagement beacon is taken like an event; a bad one is not.
+        (is (= 202 (:status (event {:d "example.com" :u "https://example.com/pricing" :e 1200}))))
+        (is (= 400 (:status (event {:d "example.com" :u "https://example.com/pricing" :e 0}))))
         (is (= 204 (:status (call handler :options "/api/event"))))
-        (is (= 1 (ingest/flush! buffer)))
+        (is (= 2 (ingest/flush! buffer)))
         (let [stats (call handler :get (str "/api/sites/" (:id site) "/stats?period=today") nil me)]
           (is (= 200 (:status stats)))
           (is (= 1 (get-in stats [:json :totals :visitors])))
           (is (= 1 (get-in stats [:json :totals :pageviews])))
           (is (= "hour" (get-in stats [:json :period :bucket])))
           (is (= 24 (count (get-in stats [:json :timeseries]))))
-          (is (= [{:name "/pricing" :visitors 1 :pageviews 1}] (get-in stats [:json :pages])))
+          (is (= [{:name "/pricing" :visitors 1 :pageviews 1 :time 1}] (get-in stats [:json :pages])))
+          (is (= 1 (get-in stats [:json :totals :visit_duration])))
           (is (= [{:name "NL" :visitors 1 :pageviews 1}] (get-in stats [:json :countries])))
           ;; One visitor, one pageview: a bounce. Nothing came before today.
           (is (true? (get-in stats [:json :has_events])))
           (is (= 100 (get-in stats [:json :totals :bounce_rate])))
-          (is (= {:visitors 0 :pageviews 0} (get-in stats [:json :previous]))))
+          (is (= {:visitors 0 :pageviews 0 :visit_duration nil} (get-in stats [:json :previous]))))
         (is (= 200 (:status (call handler :get (str "/api/sites/" (:id site) "/stats") nil me))))
         (is (= 200 (:status (call handler :get (str "/api/sites/" (:id site)
                                                     "/stats?period=custom&from=2026-09-01&to=2026-09-03")

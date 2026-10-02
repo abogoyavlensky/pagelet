@@ -364,3 +364,20 @@ pagelet deploys to the `personal` cluster (linkboard's) with `uc` 0.20.0;
   (quickmeet). `E2E_PORT=8098 npx playwright test` (after `lgx build`)
   runs the specs elsewhere; `tracker.spec.js` points its fixture at
   `baseURL` for this.
+
+## Engagement (2026-10-02)
+
+- Headless Chromium delivers the tracker's `pagehide` beacon when the page
+  navigates to another site, but aborts it (`net::ERR_ABORTED`) on
+  `page.goto('about:blank')`. Order on leaving: `beforeunload`,
+  `pagehide` (still "visible"), then `visibilitychange` to hidden. The
+  tracker spec leaves for a routed `http://elsewhere.test/`.
+- Playwright reports a beacon's body sent during unload as `null`
+  (`request.postData()`), though the server receives it.
+- `parse-event` gets JSON numbers as let-go numbers that `int` cuts:
+  `1500.7` becomes 1500, and `(min 1e300 1800000)` then `int` stays in
+  range. A float `e` below 1 (`0.4`) is refused.
+- In DuckDB, `/` on integers is float division, so
+  `round(sum(engaged_ms) / count(distinct visitor) / 1000)` needs no cast
+  before it; `avg` over no rows is null, which reads back as nil.
+- The tracker went from 2204 to 3695 bytes; README says "under 4 KB".
