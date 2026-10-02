@@ -1,5 +1,7 @@
 # Engagement Metrics Implementation Plan
 
+**Status: completed 2026-10-02;** see the summary at the end.
+
 > **For agentic workers:** Use executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** The dashboard shows how long visitors stay: a Visit duration tile and the time on page for each top page, measured by the tracker in the browser.
@@ -154,24 +156,26 @@ Server tests for the parse branch, the split flush, the delete and the two repor
 - Modify: `src/pagelet/migrations.lg`, `src/pagelet/db.lg`
 - Test: `test/pagelet/db_test.lg`
 
-- [ ] **Step 1: Branch**
+- [x] **Step 1: Branch**
   `git checkout master && git pull --ff-only && git checkout -b engagement-metrics`
 
-- [ ] **Step 2: Migration**
+- [x] **Step 2: Migration**
   Append `007-create-engagements` after `006-add-sites-public`, with the `create table` from Design and `drop table engagements` as its down. Comment in the file's style: one row per engagement beacon; `engaged_ms` is a delta; written only by `ingest.lg`.
 
-- [ ] **Step 3: Delete with the site**
+- [x] **Step 3: Delete with the site**
   `db/delete-site!` deletes from `engagements` where `site_id = ?` inside the existing transaction, before the site row. Update its docstring.
 
-- [ ] **Step 4: Tests**
+- [x] **Step 4: Tests**
   In `db_test.lg`, extend the site-delete test (or add one beside it): insert an engagement row for the site and one for another site, delete the site, and assert only the other site's row remains. If the file has a test that counts migrations or rolls all of them back, update its count.
 
-- [ ] **Step 5: Run**
+- [x] **Step 5: Run**
   Run: `mise exec -- lgx test`
   Expected: PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
   `git commit -m "Engagements: a table of its own (migration 007)"`
+
+> Deviation: there was no site-delete test in `db_test.lg`; added `deleting-a-site-takes-its-engagements`. `sites-are-private-until-made-public` rolled back one migration to reach "before 006"; it now rolls back two.
 
 ### Task 2: Ingest engagement beacons
 
@@ -179,7 +183,7 @@ Server tests for the parse branch, the split flush, the delete and the two repor
 - Modify: `src/pagelet/ingest.lg`
 - Test: `test/pagelet/ingest_test.lg`, `test/pagelet/routes_test.lg`
 
-- [ ] **Step 1: Parse tests first**
+- [x] **Step 1: Parse tests first**
   In `ingest_test.lg`, with the existing `parse` helper:
   - `{:d "example.com" :u "https://example.com/pricing?x=1" :e 12400}` gives exactly `{:ok {:site-id "site1" :ip "1.2.3.4" :ua chrome :path "/pricing" :engaged-ms 12400}}`, with `(integer? ...)` true for the number;
   - hash mode: `:h "#/about"` ends up in `:path`;
@@ -189,24 +193,26 @@ Server tests for the parse branch, the split flush, the delete and the two repor
   - a payload with both `:n "signup"` and `:e 100` is an engagement row (no `:name`).
   Run `mise exec -- lgx test`; expected: these fail.
 
-- [ ] **Step 2: The parse branch**
+- [x] **Step 2: The parse branch**
   Implement as in Design, "Ingest". Keep the existing checks' order; decide engagement by `(contains? p :e)` after the `d`/`u` check. Extract what the two branches share (site lookup, user agent classification, bot drop) rather than copying it. Update the namespace comment and the `parse-event` docstring: a beacon with `e` becomes an engagement row.
 
-- [ ] **Step 3: The split flush**
+- [x] **Step 3: The split flush**
   `insert-engagements!` writes `(site_id, ts, visitor, path, engaged_ms)` in multi-row batches like `insert-batch!`. In `flush!`, after filtering and hashing, split by `(contains? row :engaged-ms)`; write events, then engagements, each in `batch-size` batches with the existing try/log/drop; return the sum. Update the `flush!` docstring and the namespace comment ("a flush loop owns every write to `events` and `engagements`").
 
-- [ ] **Step 4: Buffer test**
+- [x] **Step 4: Buffer test**
   In `ingest_test.lg`: enqueue two event rows and two engagement rows (one for a deleted site); `flush!` returns 3; `events` has 2 rows and `engagements` 1, whose `visitor` equals the event row's from the same IP and agent, whose `ts` equals the events' `ts`, and which holds no IP or agent.
 
-- [ ] **Step 5: Route test**
+- [x] **Step 5: Route test**
   In `routes_test.lg`, beside the existing `/api/event` test: POST an engagement payload as `text/plain`, expect 202; POST one with `"e": 0`, expect 400.
 
-- [ ] **Step 6: Run**
+- [x] **Step 6: Run**
   Run: `mise exec -- lgx test`
   Expected: PASS.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
   `git commit -m "Ingest: engagement beacons into their own table"`
+
+> Deviation: the batch loop moved into `insert-all!`, shared by events and engagements; its log line says "rows" instead of "events". The route test's flush now writes 2 rows (the page view and the beacon), and its stats check gains `:time 1` and `:visit_duration 1`.
 
 ### Task 3: Reports
 
@@ -214,7 +220,7 @@ Server tests for the parse branch, the split flush, the delete and the two repor
 - Modify: `src/pagelet/stats.lg`
 - Test: `test/pagelet/stats_test.lg`
 
-- [ ] **Step 1: Tests first**
+- [x] **Step 1: Tests first**
   Add an `engagement` test over a fresh migrated database with a small `insert-engagement!` helper (`site`, `ts`, `visitor`, `path`, `ms`). Seed on 2026-09-10, plus page views so `pages` has rows:
   - visitor `va`: `/` 30000 ms, then `/` 30000 ms (two beacons of one page view), `/docs` 20000 ms;
   - visitor `vb`: `/` 20000 ms;
@@ -225,39 +231,43 @@ Server tests for the parse branch, the split flush, the delete and the two repor
   Update the existing exact-map assertions: `:totals` gains `:visit_duration nil`, `:previous` gains `:visit_duration nil`, and every expected `:pages` row gains `:time nil`.
   Run `mise exec -- lgx test`; expected: the new and updated assertions fail.
 
-- [ ] **Step 2: Implement**
+- [x] **Step 2: Implement**
   As in Design, "Reports": a `visit-duration` fn; `totals` assocs it; `previous` selects `:visit_duration` too; a private page-engagement query whose rows `pages` merges by path, `:time nil` when absent. Update the namespace comment (what visit duration and time on page mean, and that they read `engagements`) and the `totals` and `pages` docstrings.
 
-- [ ] **Step 3: Run**
+- [x] **Step 3: Run**
   Run: `mise exec -- lgx test`
   Expected: PASS.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
   `git commit -m "Stats: visit duration and time on page"`
+
+> Deviation: the plan's expected `:previous` for the 9th said a visitor; `vp` has a beacon but no page view there, so it is `{:visitors 0 :pageviews 0 :visit_duration 10}`.
 
 ### Task 4: The tracker
 
 **Files:**
 - Modify: `resources/public/p.js`, `e2e/tests/tracker.spec.js`
 
-- [ ] **Step 1: Implement**
+- [x] **Step 1: Implement**
   As in Design, "The tracker". Keep the file's style: `var`, short names, a comment per block.
 
-- [ ] **Step 2: Browser tests**
+- [x] **Step 2: Browser tests**
   In `tracker.spec.js`:
   - the existing test's `expect(s.pages).toEqual(...)` compares only `name`, `visitors` and `pageviews` (map the rows first); the rest stays;
   - a new test, "time on page": new site, route the fixture, `goto /`, wait 1200 ms, click `#about`, then `page.goto('about:blank')`. Poll `stats` until the `/` row has `time >= 1`; then assert `totals.visit_duration >= 1`, and poll until the `/about` row's `time` is not null (the unload beacon; its value may be 0). Delete the site;
   - a new test, "a failing tracker never breaks navigation": before loading the fixture, `page.addInitScript` replaces `navigator.sendBeacon` and `window.fetch` with functions that throw; `goto /`, click `#about`, and call `pagelet('signup')` through the `#signup` button, and expect the URL to be `/about` and no `pageerror` to have fired.
 
-- [ ] **Step 3: Run**
+- [x] **Step 3: Run**
   Run: `mise exec -- lgx e2e`
   Expected: PASS, all three tracker tests included. If the unload beacon never arrives in headless Chromium, check which of `pagehide` and `visibilitychange` fired before changing the design, and record the finding for Task 6.
 
-- [ ] **Step 4: Measure**
+- [x] **Step 4: Measure**
   Run: `wc -c resources/public/p.js` and note the number for the README (Task 6).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
   `git commit -m "Tracker: engaged time"`
+
+> Deviation: the tracker is 3695 bytes, not ~2.7 KB; comments were kept as the plan says, and the README says "under 4 KB". The time-on-page test leaves for a routed `http://elsewhere.test/` instead of `about:blank`, because Chromium aborts the `pagehide` beacon on a navigation to `about:blank` (docs/KNOWLEDGE.md). Codex found the two new tests ignored `E2E_PORT` (master's SPA test already rewrites the fixture's port); fixed in `be94bf5`. The guard test was checked against the old tracker, where it fails.
 
 ### Task 5: The dashboard
 
@@ -265,52 +275,71 @@ Server tests for the parse branch, the split flush, the delete and the two repor
 - Modify: `ui/src/api.ts`, `ui/src/format.ts`, `ui/src/index.css`, `ui/src/components/StatCards.tsx`, `ui/src/components/Breakdown.tsx`, `ui/src/pages/Site.tsx`
 - Test: `ui/test/format.test.ts`, `e2e/tests/dashboard.spec.js`
 
-- [ ] **Step 1: `duration` with its test**
+- [x] **Step 1: `duration` with its test**
   `duration(seconds: number): string`: under 60 `"45s"`; under 3600 `"1m 24s"` (`"2m 0s"` for 120); otherwise `"1h 5m"`. Add a test in `format.test.ts` covering 0, 45, 84, 120, 3900.
   Run: `mise exec -- lgx ui-test`
   Expected: PASS.
 
-- [ ] **Step 2: Types**
+- [x] **Step 2: Types**
   `api.ts` as in Design, "Dashboard".
 
-- [ ] **Step 3: The tile**
+- [x] **Step 3: The tile**
   `index.css`: `--color-duration`, `--color-duration-soft`, `--color-duration-deep` in both themes, a teal family distinct from the other four (start from light `#0e8a9c` / `#e2f4f7` / `#0a6573`, dark `#2aa5b8` / `#10272c` / `#93d9e4`, and check the contrast of the label on the tile in both themes). `StatCards.tsx`: the `duration` look, the fifth tile and the grid as in Design; `Tile` takes a `className`; the component comment says five.
 
-- [ ] **Step 4: The pages card**
+- [x] **Step 4: The pages card**
   `Breakdown.tsx`: export `Pages({ rows }: { rows: PageRow[] })` built on `List`, title "Pages", columns Visitors, Views, Time: the first two cells as `Breakdown` renders them today, the third `duration(r.time)` or `–` for null, muted. `Site.tsx` renders `<Pages rows={stats.pages} />` in place of the pages `Breakdown`.
 
-- [ ] **Step 5: Browser test**
+- [x] **Step 5: Browser test**
   In `dashboard.spec.js`, in the test that posts page views through the API: before any engagement, `stat-duration` reads `Visit duration` and `–`. Then POST `{d, u: https://<domain>/pricing, e: 90000}` to `/api/event`, reload after the flush (poll the stats API for `totals.visit_duration === 90`), and expect `stat-duration` to contain `1m 30s`; and the pages card's `/pricing` row to contain `1m 30s`. The pages card still has three rows.
 
-- [ ] **Step 6: Look at it**
+- [x] **Step 6: Look at it**
   Run `mise exec -- lgx run` and `mise exec -- lgx ui-dev`, open a site with data at desktop and phone widths, light and dark: five tiles sit in one row at `lg`, the fifth spans the row on a phone, and on a phone the pages card's three columns still leave the path readable (about 100 px or more).
 
-- [ ] **Step 7: Run everything**
+- [x] **Step 7: Run everything**
   Run: `mise exec -- lgx check`
   Expected: PASS (server tests, dashboard unit tests, browser tests).
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
   `git commit -m "Dashboard: visit duration and time on page"`
+
+> Deviation: on a phone the Pages card leaves about 90 px for a long path, a little under the ~100 px aimed for; the full path is in its title, and it was accepted.
 
 ### Task 6: Docs
 
 **Files:**
 - Modify: `README.md`, `docs/KNOWLEDGE.md`, `AGENTS.md`
 
-- [ ] **Step 1: README**
+- [x] **Step 1: README**
   - The intro and "Tracking a site": the tracker's size from Task 4, Step 4, in the existing wording ("under 3 KB" or what the number supports), and that the script also reports how long a page was visible.
   - "The dashboard": the fifth tile and the pages card's Time column, with the definitions (visit duration is the average visible time per measured visit; time on page per measured visitor of that page).
   - "What is collected": a paragraph for the engagement beacon: site, time, visitor id, path, visible milliseconds; nothing else.
   - "Limitations": remove "No time on page."; add that time is visible time, not active time, capped at 30 minutes per stretch, that a visit crossing UTC midnight counts as two, and that there is no scroll depth.
 
-- [ ] **Step 2: KNOWLEDGE**
+- [x] **Step 2: KNOWLEDGE**
   A dated section "Engagement" with only what was verified while doing the work: which events delivered the unload beacon in headless Chromium, how JSON numbers arrived in `parse-event`, the tracker's size, anything DuckDB did with `avg`/`round` over integers.
 
-- [ ] **Step 3: AGENTS.md**
+- [x] **Step 3: AGENTS.md**
   The request-path rule names `engagements` beside `events` as written only by `ingest.lg`.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
   `git commit -m "docs: engagement metrics"`
 
-- [ ] **Step 5: PR**
+- [x] **Step 5: PR**
   Push the branch and open a PR against `master`, as the earlier work did.
+
+---
+
+## Summary
+
+Implemented on `engagement-metrics`: migration 007 (`engagements`), the engagement branch of `parse-event` and a flush that writes events and engagements apart, `visit_duration` in totals and the previous span, `time` on every top page, a tracker that measures visible time with `performance.now()` and posts deltas on page change, hide and `pagehide` (never throwing into the host page), the Visit duration tile and the Pages card's Time column, and the docs. `lgx check` passes: 49 server tests (318 assertions), 5 dashboard unit tests, 7 browser tests. Checked by eye against the built binary at desktop (light) and phone (dark) widths.
+
+Issues met: Chromium aborts an unload beacon on a navigation to `about:blank`, so the browser test leaves for another site; a codex review on Task 3 was killed by the foreground timeout and re-run in the background.
+
+Deviations, in one place:
+- Task 1: a new site-delete test; the public-flag test rolls back two migrations.
+- Task 2: a shared `insert-all!` (log line says "rows"); the route test's flush writes 2.
+- Task 3: the plan's expected previous-span visitors was wrong (0, not 1).
+- Task 4: 3695 bytes, README "under 4 KB"; the test leaves for a real page; the new tests follow `E2E_PORT` (fixup `be94bf5`).
+- Task 5: about 90 px for a long path on a phone, accepted.
+
+What the plan could have specified better: the tracker's size from a measured draft rather than an estimate, and how the browser test leaves the page (it named `about:blank`, which cannot carry an unload beacon in Chromium).
