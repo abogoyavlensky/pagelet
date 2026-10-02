@@ -8,7 +8,8 @@ import StatCards, { type Metric } from '../components/StatCards'
 import Timeseries from '../components/Timeseries'
 import TopBar from '../components/TopBar'
 import Waiting from '../components/Waiting'
-import { country } from '../format'
+import { country, isCurrent } from '../format'
+import { useRefresh } from '../refresh'
 import { useSession, useSignedOutOn } from '../session'
 
 // The period lives in the URL (?period=7d, ?period=custom&from=..&to=..)
@@ -69,6 +70,11 @@ export default function Site() {
   useSignedOutOn(sites.error ?? report.error)
   const known = sites.data === 'denied' ? undefined : sites.data
   const site = known?.find((s) => s.id === id)
+  const shown = first && report.data && !report.data.stats.has_events ? first : report.data
+  const waiting = shown !== undefined && !shown.stats.has_events
+  // A report reaching today asks again every minute, quietly. The owner's
+  // first-visit screen polls by itself; a visitor's "No visits" view does not.
+  useRefresh(report.refresh, shown !== undefined && isCurrent(period) && (!waiting || viewer))
 
   if (viewer && sites.data === 'denied') return <Navigate to="/login" replace />
 
@@ -89,9 +95,6 @@ export default function Site() {
       </div>
     )
   }
-
-  const shown = first && report.data && !report.data.stats.has_events ? first : report.data
-  const waiting = shown !== undefined && !shown.stats.has_events
 
   return (
     <div>

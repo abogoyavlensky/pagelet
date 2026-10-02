@@ -150,21 +150,21 @@ The Refresh button is not tied to this: it is offered for any period.
 - Modify: `ui/src/format.ts`, `ui/src/api.ts`
 - Test: `ui/test/format.test.ts`
 
-- [ ] **Step 1: Branch**
+- [x] **Step 1: Branch**
   `git checkout -b auto-refresh` from an up-to-date `master`. Commit this plan first if it is not committed yet (`Plan: dashboard auto-refresh`).
 
-- [ ] **Step 2: Write the failing test for `isCurrent`**
+- [x] **Step 2: Write the failing test for `isCurrent`**
   In `ui/test/format.test.ts`, import `isCurrent` and add a test with `today = '2026-09-30'`: `today`, `7d`, `30d` → true; custom `09-01..09-29` → false; `09-01..09-30` → true; `09-01..10-05` → true.
   Run: `mise exec -- lgx ui-test`. Expected: FAIL (no export `isCurrent`).
 
-- [ ] **Step 3: Implement `isCurrent`** in `ui/src/format.ts` with the signature from Design.
+- [x] **Step 3: Implement `isCurrent`** in `ui/src/format.ts` with the signature from Design.
   Run: `mise exec -- lgx ui-test`. Expected: PASS.
 
-- [ ] **Step 4: `useApi`'s `refresh`**
+- [x] **Step 4: `useApi`'s `refresh`**
   Rework `useApi` in `ui/src/api.ts` as Design describes (generation counter, `start(quiet)`, `refresh`), and extend `Loaded<T>` and the hook's doc comment. Behaviour for existing callers must not change: `reload` still shows `loading`, a stale answer is still ignored, the last data still stays while a load is in flight.
   Run: `cd ui && npx tsc -b && npm run lint`. Expected: no errors.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
   `git commit -m "Dashboard: a quiet reload in useApi; isCurrent for periods"`
 
 ### Task 2: The `useRefresh` hook and the site page's timer
@@ -173,17 +173,19 @@ The Refresh button is not tied to this: it is offered for any period.
 - Create: `ui/src/refresh.ts`
 - Modify: `ui/src/pages/Site.tsx`
 
-- [ ] **Step 1: Write `useRefresh`** in `ui/src/refresh.ts` per Design (latest callback in a ref; no call on mount; call at once on becoming visible; off when `enabled` is false).
+- [x] **Step 1: Write `useRefresh`** in `ui/src/refresh.ts` per Design (latest callback in a ref; no call on mount; call at once on becoming visible; off when `enabled` is false).
 
-- [ ] **Step 2: Use it in `Site`**
+- [x] **Step 2: Use it in `Site`**
   `useRefresh(report.refresh, shown !== undefined && isCurrent(period) && (!waiting || viewer))`. The hook call must sit above the early returns in `Site` (hooks cannot follow a conditional return), so compute `shown` and `waiting` before them or move the call accordingly.
 
-- [ ] **Step 3: Check by hand**
+- [x] **Step 3: Check by hand**
   `mise exec -- lgx run` and `mise exec -- lgx ui-dev`; open a site with events, post an event with curl (see the README's event format or `e2e/tests/dashboard.spec.js` for the body), and temporarily set `REFRESH_MS` to 5000 to watch the tile change without the page dimming. Switch to a custom range that ended yesterday and confirm in the network panel that no stats requests repeat. Restore `REFRESH_MS` to `60_000`.
   Run: `cd ui && npx tsc -b && npm run lint`. Expected: no errors.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
   `git commit -m "Dashboard: the report refreshes every minute and on return to the tab"`
+
+> Deviation: the hand check with a 5 s `REFRESH_MS` was replaced by the browser spec (Task 5), which drives the real 60 s timer with Playwright's clock, plus the end-to-end pass at the end.
 
 ### Task 3: The Refresh button
 
