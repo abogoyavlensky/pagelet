@@ -1,7 +1,7 @@
 // The dashboard's view of the server: one typed helper per endpoint and a
 // small hook for loading data. Types mirror the JSON that
 // src/pagelet/stats.lg and routes.lg produce; change both together.
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 
 export type Site = {
   id: string
@@ -107,13 +107,18 @@ export type Loaded<T> = {
   data: T | undefined
   error: ApiError | Error | undefined
   loading: boolean
+  /** Ask again, showing `loading`. */
   reload: () => void
+  /** Ask again without `loading`: the last data stays as it is until the answer. */
+  refresh: () => void
 }
 
 /**
  * Run `load` on mount and whenever `deps` change. A stale answer (one that
- * arrives after deps moved on) is ignored. Data from the last success stays
- * while a reload is in flight, so a period switch does not blank the page.
+ * arrives after deps moved on, or after a newer ask) is ignored. Data from
+ * the last success stays while a reload is in flight, so a period switch
+ * does not blank the page. `refresh` asks again quietly, for a page that
+ * keeps itself current: its answer lands like any other, a failure included.
  */
 export function useApi<T>(load: () => Promise<T>, deps: unknown[]): Loaded<T> {
   const [data, setData] = useState<T>()
@@ -122,16 +127,24 @@ export function useApi<T>(load: () => Promise<T>, deps: unknown[]): Loaded<T> {
   const [tick, setTick] = useState(0)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const run = useCallback(load, deps)
+  // Each ask takes the next number; only the newest one's answer is kept.
+  const gen = useRef(0)
+
+  const start = useCallback((quiet: boolean) => {
+    const g = ++gen.current
+    if (!quiet) setLoading(true)
+    run().then(
+      (d) => { if (gen.current === g) { setData(d); setError(undefined); setLoading(false) } },
+      (e) => { if (gen.current === g) { setError(e); setLoading(false) } },
+    )
+  }, [run])
 
   useEffect(() => {
-    let live = true
-    setLoading(true)
-    run().then(
-      (d) => { if (live) { setData(d); setError(undefined); setLoading(false) } },
-      (e) => { if (live) { setError(e); setLoading(false) } },
-    )
-    return () => { live = false }
-  }, [run, tick])
+    start(false)
+    // Bumping the number is the point: no answer from before may land.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    return () => { gen.current++ }
+  }, [start, tick])
 
-  return { data, error, loading, reload: () => setTick((t) => t + 1) }
+  return { data, error, loading, reload: () => setTick((t) => t + 1), refresh: () => start(true) }
 }

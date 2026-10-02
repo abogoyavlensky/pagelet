@@ -8,6 +8,14 @@ export function uniqueDomain(prefix) {
   return `${prefix}-${Date.now()}-${Math.floor(Math.random() * 1e6)}.test`;
 }
 
+// Sign a page in through the login form; it lands on the overview.
+export async function signIn(page) {
+  await page.goto('/login');
+  await page.fill('#password', password);
+  await page.getByRole('button', { name: 'Sign in' }).click();
+  await expect(page.getByRole('heading', { name: 'Websites' })).toBeVisible();
+}
+
 // Sign the API request context in; its cookie jar keeps the session.
 export async function apiLogin(request) {
   const res = await request.post('/api/login', { data: { password } });

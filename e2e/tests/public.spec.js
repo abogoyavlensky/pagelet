@@ -3,15 +3,7 @@
 // on it. A session that runs out on a public site falls back to that view;
 // turned off again, the page sends visitors to the login page.
 import { test, expect } from '@playwright/test';
-import { password } from '../playwright.config.js';
-import { apiLogin, createSite, deleteSite, uniqueDomain } from './helpers.js';
-
-async function signIn(page) {
-  await page.goto('/login');
-  await page.fill('#password', password);
-  await page.getByRole('button', { name: 'Sign in' }).click();
-  await expect(page.getByRole('heading', { name: 'Websites' })).toBeVisible();
-}
+import { apiLogin, createSite, deleteSite, signIn, uniqueDomain } from './helpers.js';
 
 test('a public site reads without a session, and closes again', async ({ browser, page, request, baseURL }) => {
   await apiLogin(request);

@@ -4,6 +4,7 @@ import { api, ApiError, useApi, type Site, type Stats } from '../api'
 import SiteMark from '../components/SiteMark'
 import TopBar from '../components/TopBar'
 import { change, count } from '../format'
+import { useRefresh } from '../refresh'
 import { useSignedOutOn } from '../session'
 
 /** A small area line of the last 7 days' visitors. */
@@ -21,7 +22,8 @@ function Sparkline({ points }: { points: number[] }) {
   )
 }
 
-function SiteCard({ site }: { site: Site }) {
+/** One site's last 7 days; asks again whenever `tick` moves, keeping its numbers meanwhile. */
+function SiteCard({ site, tick }: { site: Site; tick: number }) {
   const [stats, setStats] = useState<Stats>()
   const [failed, setFailed] = useState<unknown>()
   const [online, setOnline] = useState(0)
@@ -32,7 +34,7 @@ function SiteCard({ site }: { site: Site }) {
     api.stats(site.id, { period: '7d' }).then((s) => { if (live) setStats(s) }, (e) => { if (live) setFailed(e) })
     api.realtime(site.id).then((r) => { if (live) setOnline(r.online) }, () => {})
     return () => { live = false }
-  }, [site.id, tries])
+  }, [site.id, tries, tick])
 
   const t = stats?.totals
   const c = t && change(t.visitors, stats.previous.visitors)
@@ -92,10 +94,15 @@ function SiteCard({ site }: { site: Site }) {
 /** "/": every website at a glance, the way analytics apps open. */
 export default function Sites() {
   const sites = useApi(() => api.sites(), [])
+  // Every card asks again when this moves: each minute, on return to the
+  // tab, and on Refresh. The list itself refreshes too, so a site added
+  // elsewhere shows up.
+  const [tick, setTick] = useState(0)
+  useRefresh(() => { sites.refresh(); setTick((t) => t + 1) })
   useSignedOutOn(sites.error)
   return (
     <>
-      <TopBar />
+      <TopBar onRefresh={() => { sites.reload(); setTick((t) => t + 1) }} refreshing={sites.loading} />
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight text-ink">Websites</h1>
@@ -113,7 +120,7 @@ export default function Sites() {
         </p>
       )}
       <div className="mt-6 grid gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-3">
-        {sites.data?.map((s) => <SiteCard key={s.id} site={s} />)}
+        {sites.data?.map((s) => <SiteCard key={s.id} site={s} tick={tick} />)}
         {sites.data && (
           <Link to="/sites/new"
             className="grid min-h-24 place-items-center rounded-card border-2 border-dashed sm:min-h-40 border-hairline text-sm font-medium text-muted transition-colors hover:border-faint hover:text-ink">

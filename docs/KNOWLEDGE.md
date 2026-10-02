@@ -160,6 +160,12 @@ binary byte for byte as `font/woff2`, and Chromium loaded it.
 - Once, a Playwright run left its `../bin/pagelet` web server orphaned
   (parent pid 1) on 8099, and the next run refused to start ("already
   used"). Check `ss -ltnp | grep 8099` before rerunning.
+- `e2e/tests/refresh.spec.js` drives the 60 s refresh with
+  `page.clock.install()` before the first navigation: time still flows,
+  fetches and the server are untouched, and `clock.fastForward(60_000)`
+  fires the interval once. A hidden tab is emulated by redefining
+  `document.hidden` and dispatching `visibilitychange`; the app reads
+  nothing else (not `visibilityState`).
 - `totals` casts `sum(pageviews)` to `bigint`: DuckDB's `sum` over a
   BIGINT is a HUGEINT (how the driver would return one was not checked).
 
@@ -203,7 +209,12 @@ binary byte for byte as `font/woff2`, and Chromium loaded it.
   nothing on the request path uses `binding`, and there is no HoneySQL;
   queries are plain SQL strings with `?` parameters (`src/pagelet/db.lg`,
   `stats.lg`).
-- **No response streaming**: online-now is polled every 15 s by the UI.
+- **Streaming responses are untried here**: let-go 1.13.0 writes a
+  channel or lazy-seq response body chunk by chunk, flushing after each
+  (`streamResponseBody` in `pkg/rt/http.go`, let-go #851), but pagelet has
+  never used it, and buffering through Caddy is unchecked. The dashboard
+  polls by choice: who is online every 15 s, the reports every 60 s
+  (`ui/src/refresh.ts`).
 - **`signal-notify` is Linux-only** (`pkg/rt/syscall_linux.go:599`;
   `syscall_other.go` stubs it): `main.lg` falls back to `http/wait`.
 - **cgo cannot cross-compile**: `lgx build --target` forces

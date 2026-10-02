@@ -36,6 +36,11 @@ export function utcDay(days = 0): string {
   return new Date(Date.now() + days * 86_400_000).toISOString().slice(0, 10)
 }
 
+/** Whether the period reaches today (UTC), so its numbers can still change. */
+export function isCurrent(p: Period, today = utcDay()): boolean {
+  return p.period !== 'custom' || p.to >= today
+}
+
 const regions = new Intl.DisplayNames(['en'], { type: 'region' })
 
 /** "🇳🇱 Netherlands" for "NL": the flag from regional indicators, then the name. */
