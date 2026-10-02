@@ -213,13 +213,15 @@ The Refresh button is not tied to this: it is offered for any period.
 **Files:**
 - Modify: `ui/src/pages/Sites.tsx`
 
-- [ ] **Step 1: `tick`** state in `Sites`, passed to `SiteCard` and added to its effect deps; `useRefresh` that refreshes the list quietly and bumps `tick`; `onRefresh`/`refreshing` on the overview's `TopBar`.
+- [x] **Step 1: `tick`** state in `Sites`, passed to `SiteCard` and added to its effect deps; `useRefresh` that refreshes the list quietly and bumps `tick`; `onRefresh`/`refreshing` on the overview's `TopBar`.
 
-- [ ] **Step 2: Check by hand**: with `REFRESH_MS` temporarily at 5000, a card's visitors and "online" badge change after a posted event without the card blanking or the sparkline flashing; the button does the same on demand. Restore `REFRESH_MS`.
+- [x] **Step 2: Check by hand**: with `REFRESH_MS` temporarily at 5000, a card's visitors and "online" badge change after a posted event without the card blanking or the sparkline flashing; the button does the same on demand. Restore `REFRESH_MS`.
   Run: `cd ui && npx tsc -b && npm run lint`. Expected: no errors.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
   `git commit -m "Dashboard: the overview refreshes too"`
+
+> Deviation: the 5 s hand check was replaced by the browser spec's overview step (Task 5), which advances the real 60 s timer.
 
 ### Task 5: The browser spec
 
