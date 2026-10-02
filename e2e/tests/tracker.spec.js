@@ -45,12 +45,12 @@ test('page views and a custom event from a SPA', async ({ page, request, baseURL
   await deleteSite(request, site.id);
 });
 
-test('time on page', async ({ page, request }) => {
+test('time on page', async ({ page, request, baseURL }) => {
   await apiLogin(request);
   const domain = uniqueDomain('engaged');
   const site = await createSite(request, 'Engaged', domain);
   await page.route(`http://${domain}/**`, (route) =>
-    route.fulfill({ contentType: 'text/html', body: spa }));
+    route.fulfill({ contentType: 'text/html', body: spa.replaceAll('http://127.0.0.1:8099', baseURL) }));
 
   // About a second on /, then a client-side navigation closes it; leaving
   // for another site closes /about with the pagehide beacon. (Chromium
@@ -78,12 +78,12 @@ test('time on page', async ({ page, request }) => {
   await deleteSite(request, site.id);
 });
 
-test('a failing tracker never breaks navigation', async ({ page, request }) => {
+test('a failing tracker never breaks navigation', async ({ page, request, baseURL }) => {
   await apiLogin(request);
   const domain = uniqueDomain('broken');
   const site = await createSite(request, 'Broken', domain);
   await page.route(`http://${domain}/**`, (route) =>
-    route.fulfill({ contentType: 'text/html', body: spa }));
+    route.fulfill({ contentType: 'text/html', body: spa.replaceAll('http://127.0.0.1:8099', baseURL) }));
   // Every way the tracker sends throws.
   await page.addInitScript(() => {
     navigator.sendBeacon = () => { throw new Error('no beacons'); };
