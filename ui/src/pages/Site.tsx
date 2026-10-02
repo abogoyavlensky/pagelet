@@ -1,6 +1,6 @@
 import { useCallback, useState } from 'react'
-import { Link, useParams, useSearchParams } from 'react-router'
-import { api, useApi, type Period, type Stats } from '../api'
+import { Link, Navigate, useParams, useSearchParams } from 'react-router'
+import { api, ApiError, useApi, type Period, type Site as SiteRow, type Stats } from '../api'
 import Breakdown, { Events } from '../components/Breakdown'
 import { Segmented } from '../components/Card'
 import LiveCard from '../components/LiveCard'
@@ -9,7 +9,7 @@ import Timeseries from '../components/Timeseries'
 import TopBar from '../components/TopBar'
 import Waiting from '../components/Waiting'
 import { country } from '../format'
-import { useSignedOutOn } from '../session'
+import { useSession, useSignedOutOn } from '../session'
 
 // The period lives in the URL (?period=7d, ?period=custom&from=..&to=..)
 // so a reload or a shared link shows the same range.
@@ -27,24 +27,50 @@ function periodKey(p: Period) {
 /** A report and the period it was asked for, so its wording never claims another. */
 type Report = { stats: Stats; period: Period }
 
+/**
+ * The sites the page knows: signed in, every site (for the switcher);
+ * signed out, just this one, which the server gives only when it is
+ * public. Its 401 comes back as 'denied' rather than as an error: useApi
+ * keeps an error until the next answer, so when a session expires on a
+ * public site the signed-in list's 401 is still there while this load
+ * runs, and only this load's own answer may send the visitor to /login.
+ */
+function loadSites(viewer: boolean, id: string): Promise<SiteRow[] | 'denied'> {
+  if (!viewer) return api.sites()
+  return api.site(id).then(
+    (s) => [s],
+    (e) => {
+      if (e instanceof ApiError && e.status === 401) return 'denied' as const
+      throw e
+    },
+  )
+}
+
 export default function Site() {
   const { id = '' } = useParams()
   const [query, setQuery] = useSearchParams()
   const period = readPeriod(query)
   const key = periodKey(period)
   const [metric, setMetric] = useState<Metric>('visitors')
+  // Signed out, this is a public site's read-only view.
+  const viewer = useSession().state === 'out'
 
-  const sites = useApi(() => api.sites(), [])
+  const sites = useApi(() => loadSites(viewer, id), [viewer, id])
+  // The report reloads when the session changes too, so one refused when a
+  // session ran out is asked for again as a visitor.
   const load = useCallback(
     () => api.stats(id, period).then((stats): Report => ({ stats, period })),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [id, key],
+    [id, key, viewer],
   )
   const report = useApi(load, [load])
   // The answer that showed the first visit, until a fresh report has events.
   const [first, setFirst] = useState<Report>()
   useSignedOutOn(sites.error ?? report.error)
-  const site = sites.data?.find((s) => s.id === id)
+  const known = sites.data === 'denied' ? undefined : sites.data
+  const site = known?.find((s) => s.id === id)
+
+  if (viewer && sites.data === 'denied') return <Navigate to="/login" replace />
 
   const choose = (p: Period) => {
     const q = new URLSearchParams({ period: p.period })
@@ -55,7 +81,7 @@ export default function Site() {
     setQuery(q)
   }
 
-  if (sites.data && !site) {
+  if (known && !site) {
     return (
       <div className="py-16">
         <p className="font-display text-2xl">No such site.</p>
@@ -69,8 +95,8 @@ export default function Site() {
 
   return (
     <div>
-      <TopBar sites={sites.data} site={site} period={period} onPeriod={choose} live={!waiting}
-        onSaved={sites.reload} />
+      <TopBar sites={known} site={site} period={period} onPeriod={choose} live={!waiting}
+        onSaved={sites.reload} viewer={viewer} />
 
       {/* A failed load keeps the last report on screen, dimmed and marked as
           such, still worded for the period it was loaded for. */}
@@ -82,7 +108,11 @@ export default function Site() {
         </p>
       )}
 
-      {waiting && <Waiting site={site} load={load} onOpen={setFirst} />}
+      {waiting && (viewer ? (
+        <p data-testid="no-visits" className="max-w-2xl rounded-card border border-hairline bg-surface p-5 text-muted sm:p-8">
+          No visits recorded yet.
+        </p>
+      ) : <Waiting site={site} load={load} onOpen={setFirst} />)}
       {shown && !waiting && (
         <Body report={shown} metric={metric} onMetric={setMetric} dim={report.loading || !!report.error} siteId={id} />
       )}

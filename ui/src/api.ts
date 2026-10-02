@@ -8,6 +8,8 @@ export type Site = {
   name: string
   domain: string
   created_at: string
+  /** Anyone with the link may read its dashboard, signed in or not. */
+  public: boolean
 }
 
 export type Bucket = 'hour' | 'day'
@@ -77,9 +79,13 @@ export const api = {
   logout: () => request<{ ok: true }>('POST', '/api/logout'),
   me: () => request<{ ok: true }>('GET', '/api/me'),
   sites: () => request<Site[]>('GET', '/api/sites'),
+  /** One site; without a session only a public one (else 401). */
+  site: (id: string) => request<Site>('GET', `/api/sites/${id}`),
   // The dashboard knows sites by domain; the server names them after it.
   createSite: (domain: string) => request<Site>('POST', '/api/sites', { domain }),
-  updateSite: (id: string, domain: string) => request<Site>('PUT', `/api/sites/${id}`, { domain }),
+  // `public` left out keeps the site as it is (JSON.stringify drops undefined).
+  updateSite: (id: string, domain: string, isPublic?: boolean) =>
+    request<Site>('PUT', `/api/sites/${id}`, { domain, public: isPublic }),
   deleteSite: (id: string) => request<{ ok: true }>('DELETE', `/api/sites/${id}`),
   stats: (id: string, p: Period) =>
     request<Stats>('GET', `/api/sites/${id}/stats?${periodQuery(p)}`),
