@@ -143,8 +143,11 @@
         ;; Dropped on purpose: still 202. Not an event: 400.
         (is (= 202 (:status (event {:d "unknown.com" :u "https://unknown.com/"}))))
         (is (= 400 (:status (call handler :post "/api/event" "nope"))))
+        ;; An engagement beacon is taken like an event; a bad one is not.
+        (is (= 202 (:status (event {:d "example.com" :u "https://example.com/pricing" :e 1200}))))
+        (is (= 400 (:status (event {:d "example.com" :u "https://example.com/pricing" :e 0}))))
         (is (= 204 (:status (call handler :options "/api/event"))))
-        (is (= 1 (ingest/flush! buffer)))
+        (is (= 2 (ingest/flush! buffer)))
         (let [stats (call handler :get (str "/api/sites/" (:id site) "/stats?period=today") nil me)]
           (is (= 200 (:status stats)))
           (is (= 1 (get-in stats [:json :totals :visitors])))
