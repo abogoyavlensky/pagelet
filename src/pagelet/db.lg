@@ -56,9 +56,10 @@
    is_public as \"public\"")
 
 (defn sites
-  "Every site, ordered by domain."
+  "Every site, in the owner's order (reorder-sites!); a tie, which should
+   not happen, goes by domain."
   [conn]
-  (query conn [(str "select " site-columns " from sites order by domain")]))
+  (query conn [(str "select " site-columns " from sites order by position, domain")]))
 
 (defn sites-by-domain
   "Every site keyed by its domain: the ingest's lookup table."
@@ -72,10 +73,12 @@
   (execute-one! conn [(str "select " site-columns " from sites where domain = ?") domain]))
 
 (defn create-site!
-  "A new site, private."
+  "A new site, private, after every other one."
   [conn id name domain]
-  (execute-one! conn [(str "insert into sites (id, name, domain, created_at, is_public)
-                            values (?, ?, ?, now() at time zone 'UTC', false)
+  (execute-one! conn [(str "insert into sites (id, name, domain, created_at, is_public, position)
+                            select ?, ?, ?, now() at time zone 'UTC', false,
+                                   coalesce(max(position), 0) + 1
+                            from sites
                             returning " site-columns)
                       id name domain]))
 
@@ -83,6 +86,22 @@
   (execute-one! conn [(str "update sites set name = ?, domain = ?, is_public = ? where id = ?
                             returning " site-columns)
                       name domain (boolean public?) id]))
+
+(defn reorder-sites!
+  "Put the sites in the order of `ids`, in one transaction: the listed
+   ones first as given, the others after them in the order they had.
+   Ids that name no site are ignored, and a repeated one counts once, so a
+   list that went stale in another tab still saves. Returns every site, in
+   the new order."
+  [conn ids]
+  (duckdb/with-transaction [tx conn]
+    (let [current (map :id (query tx ["select id from sites order by position, domain"]))
+          known (set current)
+          listed (distinct (filter known ids))
+          order (concat listed (remove (set listed) current))]
+      (doseq [[i id] (map-indexed vector order)]
+        (execute! tx ["update sites set position = ? where id = ?" (inc i) id]))))
+  (sites conn))
 
 (defn delete-site!
   "Delete a site with every event and engagement it has, in one

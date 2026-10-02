@@ -20,8 +20,8 @@
       (migrations/migrate! conn)
       (is (= #{"sites" "events" "sessions" "salts" "engagements" "ragtime_migrations"} (tables conn)))
       (migrations/migrate! conn)
-      (is (= 7 (:n (db/execute-one! conn ["select count(*) as n from ragtime_migrations"]))))
-      (migrations/rollback! conn 7)
+      (is (= 8 (:n (db/execute-one! conn ["select count(*) as n from ragtime_migrations"]))))
+      (migrations/rollback! conn 8)
       (is (= #{"ragtime_migrations"} (tables conn)))
       (is (= 0 (:n (db/execute-one! conn ["select count(*) as n from ragtime_migrations"]))))
       (finally
@@ -87,7 +87,7 @@
     (try
       (migrations/migrate! conn)
       ;; Back to before 006 (and the migrations after it).
-      (migrations/rollback! conn 2)
+      (migrations/rollback! conn 3)
       (db/execute! conn ["insert into sites values ('old', 'old.com', 'old.com', now() at time zone 'UTC')"])
       (migrations/migrate! conn)
       (is (false? (:public (first (db/sites conn)))))
@@ -96,6 +96,40 @@
         (is (true? (:public (db/update-site! conn "new" "new.com" "new.com" true))))
         (is (true? (:public (db/site-by-id conn "new"))))
         (is (false? (:public (db/update-site! conn "new" "new.com" "new.com" false)))))
+      (finally
+        (duckdb/close! conn)
+        (os/sh "rm" "-f" path (str path ".wal"))))))
+
+;; The owner's order: sites from before migration 008 numbered by domain, a
+;; new site last, and reorder-sites! lenient about what it is given.
+
+(defn- domains [sites] (map :domain sites))
+
+(deftest sites-keep-a-manual-order
+  (mkdir ".tmp")
+  (let [path (str ".tmp/db-test-" (rand-int 100000000) ".duckdb")
+        conn (duckdb/open path)]
+    (try
+      (migrations/migrate! conn)
+      ;; Back to before 008.
+      (migrations/rollback! conn 1)
+      (doseq [[id domain] [["b" "b.com"] ["a" "a.com"]]]
+        (db/execute! conn ["insert into sites (id, name, domain, created_at)
+                            values (?, ?, ?, now() at time zone 'UTC')" id domain domain]))
+      (migrations/migrate! conn)
+      (is (= ["a.com" "b.com"] (domains (db/sites conn))))
+      ;; A new site goes last, whatever its domain.
+      (db/create-site! conn "z" "0.com" "0.com")
+      (is (= ["a.com" "b.com" "0.com"] (domains (db/sites conn))))
+      ;; The whole list in a new order.
+      (is (= ["0.com" "b.com" "a.com"] (domains (db/reorder-sites! conn ["z" "b" "a"]))))
+      (is (= ["0.com" "b.com" "a.com"] (domains (db/sites conn))))
+      ;; Part of it: the listed ones first, the rest as they were.
+      (is (= ["a.com" "0.com" "b.com"] (domains (db/reorder-sites! conn ["a"]))))
+      ;; Unknown and repeated ids are ignored.
+      (is (= ["b.com" "a.com" "0.com"] (domains (db/reorder-sites! conn ["b" "nope" "b" "a"]))))
+      (is (= ["b.com" "a.com" "0.com"] (domains (db/sites conn))))
+      (is (= ["b.com" "a.com" "0.com"] (domains (db/reorder-sites! conn []))))
       (finally
         (duckdb/close! conn)
         (os/sh "rm" "-f" path (str path ".wal"))))))

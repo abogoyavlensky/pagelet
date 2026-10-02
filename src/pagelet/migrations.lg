@@ -80,7 +80,18 @@
              visitor varchar not null,
              path varchar not null,
              engaged_ms integer not null)"]
-     :down ["drop table engagements"]})])
+     :down ["drop table engagements"]})
+
+   ;; The owner's order of the sites, on the overview and in the switcher
+   ;; (db.lg, reorder-sites!). The sites that exist are numbered by domain,
+   ;; the order they had, so nothing moves. No constraint, as in 006.
+   (rt/sql-migration
+    {:id "008-add-sites-position"
+     :up ["alter table sites add column position integer"
+          "update sites set position = r.n
+             from (select id, row_number() over (order by domain) as n from sites) r
+             where sites.id = r.id"]
+     :down ["alter table sites drop column position"]})])
 
 (defn- config [conn]
   {:datastore (rt/sql-database conn)
