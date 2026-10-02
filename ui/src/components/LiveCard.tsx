@@ -5,8 +5,12 @@ import Card from './Card'
 
 const EVERY_MS = 15_000
 
-/** Who is on the site in the last five minutes, and where; polled every 15 s while the tab is visible. */
-export default function LiveCard({ siteId, className = '' }: { siteId: string; className?: string }) {
+/**
+ * Who is on the site in the last five minutes, and where; polled every 15 s
+ * while the tab is visible. A changed `nudge` (the Refresh button) asks at
+ * once and starts the 15 s over; the last answer stays on screen meanwhile.
+ */
+export default function LiveCard({ siteId, nudge = 0, className = '' }: { siteId: string; nudge?: number; className?: string }) {
   const [now, setNow] = useState<Realtime>()
 
   useEffect(() => {
@@ -19,7 +23,7 @@ export default function LiveCard({ siteId, className = '' }: { siteId: string; c
     if (!document.hidden) start()
     document.addEventListener('visibilitychange', onVisibility)
     return () => { live = false; stop(); document.removeEventListener('visibilitychange', onVisibility) }
-  }, [siteId])
+  }, [siteId, nudge])
 
   const n = now?.online ?? 0
   return (

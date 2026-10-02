@@ -3,21 +3,31 @@ import { useNavigate } from 'react-router'
 import { api, ApiError, type Site } from '../api'
 import { useSession } from '../session'
 import Dialog from './Dialog'
-import { CogIcon, SignOutIcon } from './Icons'
+import { CogIcon, RefreshIcon, SignOutIcon } from './Icons'
 import Snippet from './Snippet'
 
-// Settings and sign-out are one pair of plain icon buttons; on a wide
-// screen Settings also says its name.
+// Refresh, settings and sign-out are plain icon buttons; on a wide screen
+// (lg: at md the period control takes that room) Settings also says its name.
 const iconButton = 'flex h-9 min-w-9 shrink-0 items-center justify-center gap-2 rounded-[10px] px-2 text-sm font-medium text-muted transition-colors hover:bg-track hover:text-ink'
+
+/** Ask for the page's numbers again now; it turns while they are on the way. */
+export function RefreshButton({ onClick, busy = false }: { onClick: () => void; busy?: boolean }) {
+  return (
+    <button type="button" onClick={onClick} disabled={busy} aria-label="Refresh" title="Refresh"
+      className={`${iconButton} disabled:hover:bg-transparent disabled:hover:text-muted`}>
+      <RefreshIcon spinning={busy} />
+    </button>
+  )
+}
 
 /** "Settings": the tracking code, the domain, sharing, and deleting the site, in one dialog. */
 export function SettingsButton({ site, onSaved }: { site: Site; onSaved?: () => void }) {
   const [open, setOpen] = useState(false)
   return (
     <>
-      <button type="button" onClick={() => setOpen(true)} className={`${iconButton} md:px-3`} aria-label="Site settings">
+      <button type="button" onClick={() => setOpen(true)} className={`${iconButton} lg:px-3`} aria-label="Site settings">
         <CogIcon />
-        <span aria-hidden className="hidden md:inline">Settings</span>
+        <span aria-hidden className="hidden lg:inline">Settings</span>
       </button>
       <Dialog open={open} onClose={() => setOpen(false)} title={`${site.domain} settings`}>
         <Settings site={site} onSaved={() => { setOpen(false); onSaved?.() }} onChanged={() => onSaved?.()} />

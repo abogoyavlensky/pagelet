@@ -2,7 +2,7 @@
 // --test, which runs TypeScript directly on Node 24).
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { change, periodLabel, share, versus } from '../src/format.ts'
+import { change, isCurrent, periodLabel, share, versus } from '../src/format.ts'
 
 const today = { period: 'today' } as const
 const week = { period: '7d' } as const
@@ -42,4 +42,14 @@ test('share', () => {
   assert.equal(share(0, 100), '0%')
   assert.equal(share(0, 0), '0%')
   assert.equal(share(1, 1), '100%')
+})
+
+test('isCurrent', () => {
+  const day = '2026-09-30'
+  assert.equal(isCurrent(today, day), true)
+  assert.equal(isCurrent(week, day), true)
+  assert.equal(isCurrent(month, day), true)
+  assert.equal(isCurrent({ period: 'custom', from: '2026-09-01', to: '2026-09-29' }, day), false)
+  assert.equal(isCurrent({ period: 'custom', from: '2026-09-01', to: '2026-09-30' }, day), true)
+  assert.equal(isCurrent({ period: 'custom', from: '2026-09-01', to: '2026-10-05' }, day), true)
 })

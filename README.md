@@ -58,8 +58,8 @@ the websites overview: a card per site with the last 7 days' visitors,
 the change against the 7 days before, a sparkline and who is online. A
 site's page has one top bar (the logo back to the overview, the site as a
 button that switches sites, the period as tabs: today, 7 or 30 days, or a
-custom range of UTC days kept in the URL, then Settings and sign-out) over
-a grid of cards:
+custom range of UTC days kept in the URL, then Refresh, Settings and
+sign-out) over a grid of cards:
 
 - visitors, pageviews, views per visit and bounce rate, each with the
   change against the span just before (cut at the same time of day while
@@ -84,6 +84,12 @@ without signing in: every number and list, the custom events, and who is
 online. They cannot change anything, and the site list and every other
 site stay private. Turning it off closes the page at once; a visitor who
 then reloads lands on the login page. The overview marks public sites.
+
+An open dashboard keeps itself current: while it is visible, the overview
+and a site's page ask for their numbers again every minute, and at once
+when you come back to the tab or the app. A range that ended before today
+is left alone. Refresh in the top bar asks right away. A site's "Right
+now" card keeps its own pace, every 15 seconds.
 
 The dashboard installs as an app: "Install" in Chrome or Edge, or "Add to
 Home Screen" on a phone, opens it in its own window. It has no offline
@@ -176,7 +182,8 @@ Chromium through a single-page app with the tracker (page views on load,
 `pushState` and Back, a custom event) and through the dashboard (sign-in,
 add a site, its first visit, the numbers and lists, the metric and period
 switches, who is online, delete; a public site read without a session,
-and closed again). Playwright stops the app
+and closed again; refreshing by button, by the minute, on return to the
+tab and after a failed request). Playwright stops the app
 when the run ends, so it coexists with an `lgx run` on 8080.
 
 ```
