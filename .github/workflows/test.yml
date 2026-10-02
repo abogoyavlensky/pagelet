@@ -1,15 +1,17 @@
 name: test
 
 # Master pushes run these tests through deploy.yml, which deploys after
-# them.
+# them; tags through release.yml (a branch filter alone skips tag pushes).
 on:
   push:
     branches-ignore: [master]
   pull_request:
   workflow_call:
 
+# github.workflow is the caller's name when called, so a release dry run on
+# master cannot cancel the tests of a master deploy, or the other way round.
 concurrency:
-  group: test-${{ github.ref }}
+  group: test-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:

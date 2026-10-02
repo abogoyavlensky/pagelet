@@ -1,0 +1,149 @@
+name: release
+
+# A pushed tag vX.Y.Z publishes the image to ghcr.io (X.Y.Z, X.Y, latest)
+# and a GitHub release with a binary per architecture. Run by hand, it is a
+# dry run: the tests and both builds, nothing pushed, no release.
+on:
+  push:
+    tags: ['v[0-9]+.[0-9]+.[0-9]+']
+  workflow_dispatch:
+
+# A release that started is never cancelled halfway.
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  IMAGE: ghcr.io/abogoyavlensky/pagelet
+
+jobs:
+  test:
+    uses: ./.github/workflows/test.yml
+
+  build:
+    needs: [test]
+    # Native per architecture: the DuckDB driver is cgo, which cannot
+    # cross-compile. Pinned like test.yml: the image needs a binary linked
+    # against a glibc no newer than trixie's 2.41, and the release binaries
+    # need the 2.39 these runners have.
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
+    # Job permissions replace the top-level map, so contents is restated.
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-24.04
+            cache: runtimes-Linux
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+            cache: runtimes-arm64-Linux
+    steps:
+      - uses: actions/checkout@v4
+
+      # lgx, Go and Node at the versions in .mise.toml.
+      - uses: jdx/mise-action@v3
+
+      # runner.os is Linux on both architectures, so the arm64 key carries
+      # the architecture. amd64 shares test.yml's key (a hit from master's
+      # runs); the arm64 prefix does not start with runtimes-Linux-, so no
+      # amd64 fallback restores an arm64 lg, or the other way round.
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+            ~/.lgx/runtimes
+          key: ${{ matrix.cache }}-${{ hashFiles('lgx.edn') }}
+          restore-keys: ${{ matrix.cache }}-
+
+      # The test job ran these on amd64 only; on arm64 this is their one run.
+      - name: Unit tests
+        run: lgx test
+
+      - name: Build the dashboard and the binary
+        run: |
+          lgx ui-install
+          lgx build
+
+      # Builds pagelet:local around this binary, starts it and asks for
+      # /api/health. The image pushed below is this one, not a rebuild.
+      - name: Smoke-test the image
+        run: scripts/docker-smoke.sh
+
+      - name: Pack the binary
+        run: tar -czf pagelet-linux-${{ matrix.arch }}.tar.gz -C bin pagelet
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pagelet-linux-${{ matrix.arch }}
+          path: pagelet-linux-${{ matrix.arch }}.tar.gz
+          if-no-files-found: error
+          retention-days: 7
+
+      # Only a pushed tag publishes: a manual run can target a tag too.
+      - name: Log in to ghcr.io
+        if: github.event_name == 'push' && github.ref_type == 'tag'
+        env:
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ACTOR: ${{ github.actor }}
+        run: echo "$TOKEN" | docker login ghcr.io -u "$ACTOR" --password-stdin
+
+      - name: Push the image
+        if: github.event_name == 'push' && github.ref_type == 'tag'
+        env:
+          ARCH: ${{ matrix.arch }}
+        run: |
+          tag="$IMAGE:${GITHUB_REF_NAME#v}-$ARCH"
+          docker tag pagelet:local "$tag"
+          docker push "$tag"
+
+  publish:
+    needs: [build]
+    if: github.event_name == 'push' && github.ref_type == 'tag'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      packages: write
+    steps:
+      # gh release needs the repository.
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: pagelet-linux-*
+          merge-multiple: true
+          path: dist
+
+      - name: Checksums
+        run: cd dist && sha256sum pagelet-linux-*.tar.gz > checksums.txt
+
+      - name: Log in to ghcr.io
+        env:
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ACTOR: ${{ github.actor }}
+        run: echo "$TOKEN" | docker login ghcr.io -u "$ACTOR" --password-stdin
+
+      # One multi-arch manifest over the two smoke-tested arch images.
+      - name: Publish the image
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          minor="${version%.*}"
+          docker buildx imagetools create \
+            -t "$IMAGE:$version" -t "$IMAGE:$minor" -t "$IMAGE:latest" \
+            "$IMAGE:$version-amd64" "$IMAGE:$version-arm64"
+          docker buildx imagetools inspect "$IMAGE:$version"
+
+      # Last, so a release never exists without its image.
+      - name: Create the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" dist/* --title "$GITHUB_REF_NAME" --generate-notes --verify-tag
