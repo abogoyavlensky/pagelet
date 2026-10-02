@@ -33,3 +33,17 @@ export function RefreshIcon({ spinning = false }: { spinning?: boolean }) {
     </svg>
   )
 }
+
+/** Six dots: the handle that drags a card into another place. */
+export function GripIcon() {
+  return (
+    <svg aria-hidden viewBox="0 0 24 24" className={svg}>
+      <circle cx="9" cy="12" r="1" />
+      <circle cx="9" cy="5" r="1" />
+      <circle cx="9" cy="19" r="1" />
+      <circle cx="15" cy="12" r="1" />
+      <circle cx="15" cy="5" r="1" />
+      <circle cx="15" cy="19" r="1" />
+    </svg>
+  )
+}
