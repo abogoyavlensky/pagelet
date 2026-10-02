@@ -70,9 +70,9 @@
         p (stats/period conn {:period "7d"} now-day)
         s (stats/stats conn "s1" p later)]
     (is (= {:from "2026-09-04T00:00:00" :to "2026-09-11T00:00:00" :bucket "day"} (:period s)))
-    (is (= {:visitors 2 :pageviews 28 :views_per_visitor 14.0 :bounce_rate 0} (:totals s)))
+    (is (= {:visitors 2 :pageviews 28 :views_per_visitor 14.0 :bounce_rate 0 :visit_duration nil} (:totals s)))
     ;; The 7 days before held nothing.
-    (is (= {:visitors 0 :pageviews 0} (:previous s)))
+    (is (= {:visitors 0 :pageviews 0 :visit_duration nil} (:previous s)))
     (is (true? (:has_events s)))
     (is (= [{:t "2026-09-04" :visitors 0 :pageviews 0}
             {:t "2026-09-05" :visitors 0 :pageviews 0}
@@ -82,9 +82,9 @@
             {:t "2026-09-09" :visitors 1 :pageviews 8}
             {:t "2026-09-10" :visitors 2 :pageviews 14}]
            (:timeseries s)))
-    (is (= [{:name "/" :visitors 2 :pageviews 13}
-            {:name "/pricing" :visitors 2 :pageviews 12}
-            {:name "/docs" :visitors 1 :pageviews 3}]
+    (is (= [{:name "/" :visitors 2 :pageviews 13 :time nil}
+            {:name "/pricing" :visitors 2 :pageviews 12 :time nil}
+            {:name "/docs" :visitors 1 :pageviews 3 :time nil}]
            (:pages s)))
     ;; Nulls (internal or no referrer) are not a row.
     (is (= [{:name "google.com" :visitors 1 :pageviews 5}
@@ -119,8 +119,8 @@
   (let [conn (seeded)
         p (stats/period conn {:period "custom" :from "2026-01-01" :to "2026-01-03"} now-day)
         s (stats/stats conn "s1" p later)]
-    (is (= {:visitors 0 :pageviews 0 :views_per_visitor 0.0 :bounce_rate 0} (:totals s)))
-    (is (= {:visitors 0 :pageviews 0} (:previous s)))
+    (is (= {:visitors 0 :pageviews 0 :views_per_visitor 0.0 :bounce_rate 0 :visit_duration nil} (:totals s)))
+    (is (= {:visitors 0 :pageviews 0 :visit_duration nil} (:previous s)))
     ;; Nothing in the period, but the site has events.
     (is (true? (:has_events s)))
     (is (false? (:has_events (stats/stats conn "nope" p later))))
@@ -143,14 +143,45 @@
     (is (= 25 (:bounce_rate (stats/totals conn "s1" (stats/period conn {:period "today"} now-day)))))
     (duckdb/close! conn)))
 
+(defn- insert-engagement! [conn site ts visitor path ms]
+  (db/execute! conn ["insert into engagements values (?, ?::timestamp, ?, ?, ?)" site ts visitor path ms]))
+
+(deftest engagement
+  ;; Visible time on 2026-09-10: va 80 s over two pages (two beacons on /),
+  ;; vb 20 s, vc never measured; the day before, vp 10 s.
+  (let [conn (duckdb/open "")]
+    (migrations/migrate! conn)
+    (insert! conn "2026-09-10 09:00:00" 1 {:visitor "va" :path "/"})
+    (insert! conn "2026-09-10 09:00:00" 1 {:visitor "va" :path "/docs"})
+    (insert! conn "2026-09-10 09:00:00" 1 {:visitor "vb" :path "/"})
+    (insert! conn "2026-09-10 09:00:00" 1 {:visitor "vc" :path "/pricing"})
+    (insert-engagement! conn "s1" "2026-09-10 09:00:05" "va" "/" 30000)
+    (insert-engagement! conn "s1" "2026-09-10 09:00:40" "va" "/" 30000)
+    (insert-engagement! conn "s1" "2026-09-10 09:01:00" "va" "/docs" 20000)
+    (insert-engagement! conn "s1" "2026-09-10 09:00:30" "vb" "/" 20000)
+    (insert-engagement! conn "s2" "2026-09-10 09:00:30" "vx" "/" 900000)
+    (insert-engagement! conn "s1" "2026-09-09 09:00:30" "vp" "/" 10000)
+    (let [p (stats/period conn {:period "custom" :from "2026-09-10" :to "2026-09-10"} now-day)
+          s (stats/stats conn "s1" p later)]
+      (is (= 50 (get-in s [:totals :visit_duration])))
+      (is (= {:visitors 0 :pageviews 0 :visit_duration 10} (:previous s)))
+      ;; / is 80 s over va and vb: 40 each.
+      (is (= {"/" 40 "/docs" 20 "/pricing" nil}
+             (into {} (map (juxt :name :time)) (:pages s))))
+      ;; Engagement never counts as an event or a visitor.
+      (is (= 4 (get-in s [:totals :pageviews])))
+      (is (= 3 (get-in s [:totals :visitors])))
+      (is (= [] (:events s))))
+    (duckdb/close! conn)))
+
 (deftest the-previous-span
   ;; 2026-09-10 alone is compared with 2026-09-09, cut at the same time of
   ;; day while the 10th is still running.
   (let [conn (seeded)
         p (stats/period conn {:period "custom" :from "2026-09-10" :to "2026-09-10"} now-day)]
-    (is (= {:visitors 1 :pageviews 8} (:previous (stats/stats conn "s1" p later))))
-    (is (= {:visitors 1 :pageviews 5} (:previous (stats/stats conn "s1" p "2026-09-10T12:05:00"))))
-    (is (= {:visitors 0 :pageviews 0} (:previous (stats/stats conn "s1" p "2026-09-10T11:00:00"))))
+    (is (= {:visitors 1 :pageviews 8 :visit_duration nil} (:previous (stats/stats conn "s1" p later))))
+    (is (= {:visitors 1 :pageviews 5 :visit_duration nil} (:previous (stats/stats conn "s1" p "2026-09-10T12:05:00"))))
+    (is (= {:visitors 0 :pageviews 0 :visit_duration nil} (:previous (stats/stats conn "s1" p "2026-09-10T11:00:00"))))
     (duckdb/close! conn)))
 
 (deftest online-now
