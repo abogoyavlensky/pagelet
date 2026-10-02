@@ -163,6 +163,23 @@ binary byte for byte as `font/woff2`, and Chromium loaded it.
 - `totals` casts `sum(pageviews)` to `bigint`: DuckDB's `sum` over a
   BIGINT is a HUGEINT (how the driver would return one was not checked).
 
+## Installable dashboard (2026-10-02)
+
+- PNGs come back from the binary byte for byte as `image/png`, like the
+  fonts (`e2e/tests/install.spec.js` compares each icon with its file in
+  `ui/public/`).
+- The icons are made from `ui/public/favicon.svg` by
+  `scripts/gen-icons.mjs`, drawn full-bleed (the tile's `rx` removed), with
+  the e2e tests' Playwright: the host has no SVG rasteriser. Re-run it and
+  commit the PNGs after changing the favicon.
+- Vite rewrites `href="/manifest.webmanifest"` and
+  `href="/apple-touch-icon.png"` in `index.html` to `/app/...`, as it does
+  for the favicon. It does not touch the manifest's contents, so the icon
+  `src`s there are relative to the manifest, which keeps them right under
+  `lgx ui-dev` (served at `/`) and in the build (`/app/`).
+- No service worker: Chrome offers "Install" without one, and a cached
+  dashboard would only show stale numbers.
+
 ## Docker image (2026-09-30)
 
 - `bin/pagelet` links glibc and libstdc++ dynamically (`ldd`: libstdc++.so.6,

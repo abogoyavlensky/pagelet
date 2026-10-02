@@ -85,6 +85,11 @@ online. They cannot change anything, and the site list and every other
 site stay private. Turning it off closes the page at once; a visitor who
 then reloads lands on the login page. The overview marks public sites.
 
+The dashboard installs as an app: "Install" in Chrome or Edge, or "Add to
+Home Screen" on a phone, opens it in its own window. It has no offline
+mode. On iOS the installed app keeps its own sign-in, so you may need to
+sign in once more there.
+
 ## Tracking a site
 
 Add the site in the dashboard (its domain, e.g. `example.com`; `www.` is
