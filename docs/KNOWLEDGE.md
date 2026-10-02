@@ -15,6 +15,7 @@ claim goes stale, fix or delete it: a missing note beats a wrong one.
 | `github.com/mileusna/useragent` | v1.3.5 | user agent parsing, generated bindings (`:go/interop`) |
 | integrant, ruuter | 1.0.1, v2.1.1 | components, routing |
 | React, react-router, Recharts | 19, 7.18, 3 | the dashboard in `ui/` (Vite 8, TypeScript 6, Tailwind 4) |
+| dnd-kit (`core`, `sortable`, `utilities`) | 6.3, 10, 3.2 | dragging the overview's cards into order |
 | Onest | fontsource 5.3 | the dashboard's font, shipped as files in the binary |
 | @playwright/test | 1.56.0 | browser tests in `e2e/`, on `chromium_headless_shell-1194` |
 
@@ -381,3 +382,26 @@ pagelet deploys to the `personal` cluster (linkboard's) with `uc` 0.20.0;
   `round(sum(engaged_ms) / count(distinct visitor) / 1000)` needs no cast
   before it; `avg` over no rows is null, which reads back as nil.
 - The tracker went from 2204 to 3695 bytes; README says "under 4 KB".
+
+## Manual site order (2026-10-02)
+
+- DuckDB takes `update sites set position = r.n from (select id,
+  row_number() over (order by domain) as n from sites) r where sites.id =
+  r.id` (migration 008's backfill) and `insert ... select ?, ...,
+  coalesce(max(position), 0) + 1 from sites returning ...` (a new site
+  last; the aggregate yields one row on an empty table).
+- ruuter 2.1.1 matches a literal segment before a parameter, so
+  `PUT /api/sites/order` and `PUT /api/sites/:id` coexist in any order in
+  the table.
+- dnd-kit's default screen-reader announcements name an item by its id;
+  `Sites.tsx` passes its own with the domain.
+- dnd-kit swallows clicks for 50 ms after a drag ends (a capture listener
+  on the document), so a script that taps a card right after a touch drag
+  sees nothing happen; a person cannot be that fast.
+- Playwright drives a dnd-kit drag with `page.mouse` (down, a few small
+  moves, then the move to the target in steps, up). A touch drag needs CDP
+  `Input.dispatchTouchEvent` (touchStart, touchMove..., touchEnd);
+  `touch-action: none` on the handle keeps the page from scrolling.
+- The preview browser in T3 Code is not available on a headless box; a
+  throwaway script under `e2e/.tmp/` (ignored) importing `chromium` from
+  `@playwright/test` does the same job against the built binary.

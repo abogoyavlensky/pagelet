@@ -56,7 +56,10 @@ lgx ui-dev              # Vite on :5173, proxying /api and /p.js to :8080
 
 Light or dark with the system, laid out for desktops and phones. `/` is
 the websites overview: a card per site with the last 7 days' visitors,
-the change against the 7 days before, a sparkline and who is online. A
+the change against the 7 days before, a sparkline and who is online. The
+sites are in your order: drag a card by the handle in its corner to move
+it (by mouse, touch or keyboard), and a new site goes last. The site
+switcher follows the same order. A
 site's page has one top bar (the logo back to the overview, the site as a
 button that switches sites, the period as tabs: today, 7 or 30 days, or a
 custom range of UTC days kept in the URL, then Refresh, Settings and
