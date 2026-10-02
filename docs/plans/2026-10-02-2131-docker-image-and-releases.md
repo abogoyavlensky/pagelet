@@ -1,5 +1,7 @@
 # Docker Image on ghcr.io and GitHub Releases Implementation Plan
 
+**Status: completed 2026-10-02.** See the summary at the end.
+
 > **For agentic workers:** Use executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** A version tag publishes an official multi-arch image to `ghcr.io/abogoyavlensky/pagelet` and Linux binaries to a GitHub release, and the README opens with a quickstart for self-hosting with either.
@@ -287,24 +289,26 @@ There is no unit-testable code here. The checks are:
 
 > PR #14. CI green on both runs: browser tests 8 passed; the smoke test built the new image (`RUN mkdir -p /app/data` layer) and got `{"ok":true}`.
 
-- [ ] **Step 4: Merge when the user approves the PR**, as earlier PRs were merged (squash). The master deploy runs; check it stays green (`gh run watch` on the deploy run): the deployed container now gets `DB_PATH` from both the image and compose, same value.
+- [x] **Step 4: Merge when the user approves the PR**, as earlier PRs were merged (squash). The master deploy runs; check it stays green (`gh run watch` on the deploy run): the deployed container now gets `DB_PATH` from both the image and compose, same value.
 
-- [ ] **Step 5: Dry run on master**
+> Deviation: the agent's token cannot dispatch workflows (HTTP 403), and the user chose to skip the dry run and cut `v0.1.0` directly; the tag run's test and build jobs did the same checks first.
+
+- [x] **Step 5: Dry run on master** (skipped, see above)
   Run: `gh workflow run release.yml --ref master`, then `gh run watch` on it.
   Expected: `test` and both `build` jobs pass; the push steps and `publish` are skipped. This is the first arm64 build of pagelet: if the arm64 job fails (the runtime build, `lgx test`, or the smoke test), fix it in a follow-up PR before tagging. Note the arm64 job's cold build time for KNOWLEDGE.md.
 
 ### Task 6: The first release
 
-- [ ] **Step 1: Ask the user** whether to cut `v0.1.0` now (it publishes an image and a release). Stop here if not; Tasks 6 and 7 wait.
+- [x] **Step 1: Ask the user** whether to cut `v0.1.0` now (it publishes an image and a release). Stop here if not; Tasks 6 and 7 wait.
 
-- [ ] **Step 2: Tag and push**
+- [x] **Step 2: Tag and push**
   `git switch master && git pull && git tag v0.1.0 && git push origin v0.1.0`
 
-- [ ] **Step 3: Watch the release run**
+- [x] **Step 3: Watch the release run**
   Run: `gh run watch` on the `release` run.
   Expected: all three jobs pass; `imagetools inspect` in the log lists `linux/amd64` and `linux/arm64`.
 
-- [ ] **Step 4: Verify what was published, as a stranger would**
+- [x] **Step 4: Verify what was published, as a stranger would**
   - `gh release view v0.1.0 --json assets -q '.assets[].name'` → `checksums.txt`, `pagelet-linux-amd64.tar.gz`, `pagelet-linux-arm64.tar.gz`
   - in a scratch directory under `.tmp/`: the README's `curl ... | tar -xz` line, then `sha256sum pagelet-linux-amd64.tar.gz` of a separate download against `checksums.txt`. The dev box has glibc 2.43, so the binary must start: `PORT=8097 DB_PATH=<scratch>/p.duckdb ADMIN_PASSWORD=x ./pagelet &`, `curl -fsS localhost:8097/api/health`, then kill it.
   - anonymous pull, without Docker: `curl -fsS "https://ghcr.io/token?scope=repository:abogoyavlensky/pagelet:pull"` returns a token, and with it `curl -fsS -H "Authorization: Bearer $TOKEN" -H "Accept: application/vnd.oci.image.index.v1+json" https://ghcr.io/v2/abogoyavlensky/pagelet/manifests/latest` returns an index with both platforms. If it answers 401/403/404, the package is private: ask the user to set it to public at `https://github.com/users/abogoyavlensky/packages/container/pagelet/settings`, then check again.
@@ -315,9 +319,41 @@ There is no unit-testable code here. The checks are:
 - Modify: `docs/KNOWLEDGE.md`
 - Modify: `docs/plans/2026-10-02-2131-docker-image-and-releases.md`
 
-- [ ] **Step 1: Add a "Releases (2026-10-…)" section to `docs/KNOWLEDGE.md`** with only what was verified: the arm64 build works on `ubuntu-24.04-arm` (and its cold build time), the cache key must carry the architecture, whether the ghcr package came out public or needed the manual switch, how a release is cut and dry-run, the image tags.
+- [x] **Step 1: Add a "Releases (2026-10-…)" section to `docs/KNOWLEDGE.md`** with only what was verified: the arm64 build works on `ubuntu-24.04-arm` (and its cold build time), the cache key must carry the architecture, whether the ghcr package came out public or needed the manual switch, how a release is cut and dry-run, the image tags.
 
-- [ ] **Step 2: Mark this plan completed** the way earlier plans are (a `**Status: completed <date>.**` line under the title and a short summary at the end), ticking the checkboxes.
+- [x] **Step 2: Mark this plan completed** the way earlier plans are (a `**Status: completed <date>.**` line under the title and a short summary at the end), ticking the checkboxes.
 
-- [ ] **Step 3: Commit and PR**
+- [x] **Step 3: Commit and PR**
   On a branch `releases-notes`: `git commit -am "Releases: what the first release verified"`, push, open a PR.
+
+## Summary
+
+Shipped in PR #14 and released as `v0.1.0`
+(https://github.com/abogoyavlensky/pagelet/releases/tag/v0.1.0):
+`release.yml` (tests, native amd64 and arm64 builds with the smoke test,
+then the multi-arch image on `ghcr.io/abogoyavlensky/pagelet` as `0.1.0`,
+`0.1`, `latest`, and a release with both tarballs and `checksums.txt`); the
+image's `/app/data` and default `DB_PATH`, `EXPOSE` and OCI labels; an MIT
+`LICENSE`; the README's Quickstart, Releases and License sections; a
+backlog entry for the glibc floor. Verified as a stranger: anonymous
+manifest reads for all three tags (both platforms; the package came out
+public by itself), the README's binary download with a matching checksum,
+started and answering `/api/health`, `/p.js` and `/login`, and a clean
+SIGTERM shutdown. The arm64 image's config shows `DB_PATH`, port 8080 and
+the labels.
+
+Deviations:
+- The plan was committed on `releases`, so Task 1 Step 1 was already done.
+- actionlint ran as `mise exec actionlint@1.7.12 -- actionlint` (a shim
+  with no version set).
+- Codex's review led to `test.yml`'s concurrency group carrying the calling
+  workflow, so a release dry run on master cannot cancel a deploy's tests.
+- The server does not create `DB_PATH`'s directory, so the binary
+  quickstart keeps the default `pagelet.duckdb` in the current directory;
+  Docker updates use `docker stop`, not `docker rm -f`.
+- No dry run: the agent cannot dispatch workflows, and the user chose to
+  tag `v0.1.0` directly. `v0.1.0` also carries PR #15 (manual site order),
+  merged after #14.
+
+What the plan could have specified better: check up front whether the
+agent's token may dispatch workflows, since the dry run depended on it.

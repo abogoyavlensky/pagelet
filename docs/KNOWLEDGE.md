@@ -405,3 +405,28 @@ pagelet deploys to the `personal` cluster (linkboard's) with `uc` 0.20.0;
 - The preview browser in T3 Code is not available on a headless box; a
   throwaway script under `e2e/.tmp/` (ignored) importing `chromium` from
   `@playwright/test` does the same job against the built binary.
+
+## Releases (2026-10-02)
+
+- `v0.1.0` (run 37072258841, on `4d77d4c`): test 1m28s, amd64 build 57 s
+  (warm runtime cache, shared with `test.yml`), arm64 build 1m56s (cold:
+  the first arm64 build of pagelet, on `ubuntu-24.04-arm`), publish 17 s.
+  lgx 0.4.2, Go and Node install through mise on arm64 unchanged; the
+  DuckDB runtime builds, `lgx test` and the image smoke test pass there.
+- `runner.os` is `Linux` on both architectures, so the arm64 runtime cache
+  is keyed `runtimes-arm64-Linux-...`; a prefix starting `runtimes-Linux-`
+  would be restored by the amd64 fallback (and the other way round).
+- The ghcr package came out **public** on the first push from the public
+  repository: an anonymous token
+  (`https://ghcr.io/token?scope=repository:abogoyavlensky/pagelet:pull`)
+  reads `latest`, `0.1` and `0.1.0`, each an index of `linux/amd64` and
+  `linux/arm64`. No manual visibility switch was needed.
+- The release binary from ubuntu-24.04 needs `GLIBC_2.38` at most
+  (`objdump -T`); the README promises 2.39, the build host's, as the safe
+  floor. It ran on the dev box (glibc 2.43) from the README's
+  `releases/latest/download` URL, and its checksum matched `checksums.txt`.
+- The agent's `gh` token cannot dispatch workflows (403 "Resource not
+  accessible by personal access token" on `gh workflow run`), so a dry run
+  is started by the owner from the Actions tab. Pushing a tag works.
+- `test.yml`'s concurrency group is `test-<calling workflow>-<ref>`: a
+  dry run of `release` on master and a master `deploy` no longer share one.
