@@ -10,7 +10,7 @@ import Snippet from './Snippet'
 // screen Settings also says its name.
 const iconButton = 'flex h-9 min-w-9 shrink-0 items-center justify-center gap-2 rounded-[10px] px-2 text-sm font-medium text-muted transition-colors hover:bg-track hover:text-ink'
 
-/** "Settings": the tracking code, the domain, and deleting the site, in one dialog. */
+/** "Settings": the tracking code, the domain, sharing, and deleting the site, in one dialog. */
 export function SettingsButton({ site, onSaved }: { site: Site; onSaved?: () => void }) {
   const [open, setOpen] = useState(false)
   return (
@@ -20,7 +20,7 @@ export function SettingsButton({ site, onSaved }: { site: Site; onSaved?: () => 
         <span aria-hidden className="hidden md:inline">Settings</span>
       </button>
       <Dialog open={open} onClose={() => setOpen(false)} title={`${site.domain} settings`}>
-        <Settings site={site} onSaved={() => { setOpen(false); onSaved?.() }} />
+        <Settings site={site} onSaved={() => { setOpen(false); onSaved?.() }} onChanged={() => onSaved?.()} />
       </Dialog>
     </>
   )
@@ -57,7 +57,67 @@ export function SignOutButton() {
 
 const input = 'min-w-0 flex-1 rounded-lg border border-hairline bg-paper px-3 py-2 text-sm text-ink outline-none focus-visible:outline-none transition-colors'
 
-function Settings({ site, onSaved }: { site: Site; onSaved: () => void }) {
+/**
+ * Whether anyone with the link may read the dashboard. Saved as soon as it
+ * is ticked; the dialog stays open, and the site list reloads behind it.
+ */
+function PublicDashboard({ site, onChanged }: { site: Site; onChanged: () => void }) {
+  const [isPublic, setIsPublic] = useState(site.public)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string>()
+  const [copied, setCopied] = useState(false)
+  const link = `${window.location.origin}/sites/${site.id}`
+
+  // The box moves at once, and back if the save fails.
+  const toggle = async (next: boolean) => {
+    setBusy(true)
+    setError(undefined)
+    setIsPublic(next)
+    try {
+      setIsPublic((await api.updateSite(site.id, site.domain, next)).public)
+      onChanged()
+    } catch (err) {
+      setIsPublic(!next)
+      setError(err instanceof Error ? err.message : 'Could not save the site.')
+    } finally {
+      setBusy(false)
+    }
+  }
+  const copy = async () => {
+    await navigator.clipboard.writeText(link)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 1600)
+  }
+
+  return (
+    <section className="border-t border-hairline pt-6">
+      <h3 className="text-sm font-semibold">Public dashboard</h3>
+      <label className="mt-2 flex items-start gap-2.5 text-sm text-ink">
+        <input type="checkbox" checked={isPublic} disabled={busy} onChange={(e) => toggle(e.target.checked)}
+          className="mt-0.5 size-4 shrink-0 accent-[var(--color-accent)]" />
+        <span>
+          Anyone with the link can view this dashboard
+          <span className="mt-0.5 block text-muted">
+            Every number on it, who is online and the custom events. Nothing can be changed, and other sites stay private.
+          </span>
+        </span>
+      </label>
+      {isPublic && (
+        <div className="mt-3 flex gap-2">
+          <input readOnly aria-label="Public link" value={link} onFocus={(e) => e.target.select()}
+            className={`${input} font-mono text-[13px]`} />
+          <button type="button" onClick={copy}
+            className="rounded-lg border border-hairline px-4 text-sm font-medium text-ink transition-colors hover:bg-accent-soft">
+            {copied ? 'Copied' : 'Copy'}
+          </button>
+        </div>
+      )}
+      {error && <p role="alert" className="mt-2 text-sm text-danger">{error}</p>}
+    </section>
+  )
+}
+
+function Settings({ site, onSaved, onChanged }: { site: Site; onSaved: () => void; onChanged: () => void }) {
   const navigate = useNavigate()
   const [domain, setDomain] = useState(site.domain)
   const [error, setError] = useState<string>()
@@ -108,6 +168,7 @@ function Settings({ site, onSaved }: { site: Site; onSaved: () => void }) {
         </div>
         {error && <p role="alert" className="mt-2 text-sm text-danger">{error}</p>}
       </form>
+      <PublicDashboard site={site} onChanged={onChanged} />
       <section className="border-t border-hairline pt-6">
         <h3 className="text-sm font-semibold text-danger">Delete this site</h3>
         <p className="mt-1 text-sm text-muted">

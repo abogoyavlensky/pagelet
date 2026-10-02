@@ -43,7 +43,12 @@ function SiteCard({ site }: { site: Site }) {
         <div className="flex min-w-0 items-center gap-3">
           <SiteMark domain={site.domain} size="lg" />
           <div className="min-w-0">
-            <p className="truncate font-semibold text-ink">{site.domain}</p>
+            <p className="flex min-w-0 items-center gap-2">
+              <span className="truncate font-semibold text-ink">{site.domain}</span>
+              {site.public && (
+                <span className="shrink-0 rounded-full bg-track px-1.5 py-0.5 text-[11px] font-medium text-muted">Public</span>
+              )}
+            </p>
             <p className="text-xs text-muted">Last 7 days</p>
           </div>
         </div>
