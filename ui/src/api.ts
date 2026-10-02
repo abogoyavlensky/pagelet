@@ -16,17 +16,28 @@ export type Bucket = 'hour' | 'day'
 
 export type Row = { name: string; visitors: number; pageviews: number }
 export type EventRow = { name: string; count: number; visitors: number }
+/** A top page; time is its visible seconds per measured visitor, null when none was measured. */
+export type PageRow = Row & { time: number | null }
 
 export type Stats = {
   period: { from: string; to: string; bucket: Bucket }
   /** Whether the site has any event at all, in any period. */
   has_events: boolean
-  /** bounce_rate is a whole percentage, 0-100. */
-  totals: { visitors: number; pageviews: number; views_per_visitor: number; bounce_rate: number }
+  /**
+   * bounce_rate is a whole percentage, 0-100; visit_duration the average
+   * visible seconds per measured visit, null when none was measured.
+   */
+  totals: {
+    visitors: number
+    pageviews: number
+    views_per_visitor: number
+    bounce_rate: number
+    visit_duration: number | null
+  }
   /** The span just before the period, cut at the same point while it runs. */
-  previous: { visitors: number; pageviews: number }
+  previous: { visitors: number; pageviews: number; visit_duration: number | null }
   timeseries: { t: string; visitors: number; pageviews: number }[]
-  pages: Row[]
+  pages: PageRow[]
   referrers: Row[]
   countries: Row[]
   browsers: Row[]

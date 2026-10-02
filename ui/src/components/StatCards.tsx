@@ -1,5 +1,5 @@
 import type { Period, Stats } from '../api'
-import { change, count, versus } from '../format'
+import { change, count, duration, versus } from '../format'
 
 export type Metric = 'visitors' | 'pageviews'
 
@@ -9,6 +9,7 @@ const LOOK = {
   pageviews: { tile: 'bg-pageviews-soft', dot: 'bg-pageviews', label: 'text-pageviews-deep' },
   views: { tile: 'bg-views-soft', dot: 'bg-views', label: 'text-views-deep' },
   bounce: { tile: 'bg-bounce-soft', dot: 'bg-bounce', label: 'text-bounce-deep' },
+  duration: { tile: 'bg-duration-soft', dot: 'bg-duration', label: 'text-duration-deep' },
 }
 
 /** ↑ 14% in green or ↓ 8% in orange; nothing when there is nothing to compare with. */
@@ -27,16 +28,17 @@ function Change({ now, then, p }: { now: number; then: number; p: Period }) {
   )
 }
 
-function Tile({ look, label, value, testId, children }: {
+function Tile({ look, label, value, testId, className = '', children }: {
   look: keyof typeof LOOK
   label: string
   value: string
   testId: string
+  className?: string
   children?: React.ReactNode
 }) {
   const l = LOOK[look]
   return (
-    <div data-testid={testId} className={`rounded-card p-4 sm:p-5 ${l.tile}`}>
+    <div data-testid={testId} className={`rounded-card p-4 sm:p-5 ${l.tile} ${className}`}>
       <p className={`flex items-center gap-2 text-sm font-medium ${l.label}`}>
         <span aria-hidden className={`size-2 rounded-full ${l.dot}`} />
         {label}
@@ -47,12 +49,15 @@ function Tile({ look, label, value, testId, children }: {
   )
 }
 
-/** The four numbers of the period, each on its own soft tile, with the change against the span before. */
+/**
+ * The five numbers of the period, each on its own soft tile, with the change
+ * against the span before. Visit duration is "–" when nothing was measured.
+ */
 export default function StatCards({ stats, period }: { stats: Stats; period: Period }) {
   const { totals, previous } = stats
   const vpvBefore = previous.visitors ? previous.pageviews / previous.visitors : 0
   return (
-    <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4 [&>*]:min-w-0">
+    <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-5 [&>*]:min-w-0">
       <Tile look="visitors" label="Visitors" value={count(totals.visitors)} testId="stat-visitors">
         <Change now={totals.visitors} then={previous.visitors} p={period} />
       </Tile>
@@ -64,6 +69,12 @@ export default function StatCards({ stats, period }: { stats: Stats; period: Per
       </Tile>
       <Tile look="bounce" label="Bounce rate" value={`${totals.bounce_rate}%`} testId="stat-bounce">
         <span className="text-muted">Visits that saw one page</span>
+      </Tile>
+      <Tile look="duration" label="Visit duration" testId="stat-duration" className="col-span-2 lg:col-span-1"
+        value={totals.visit_duration === null ? '–' : duration(totals.visit_duration)}>
+        {totals.visit_duration === null
+          ? <span className="text-muted">Not measured in this period</span>
+          : <Change now={totals.visit_duration} then={previous.visit_duration ?? 0} p={period} />}
       </Tile>
     </div>
   )

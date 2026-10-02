@@ -29,6 +29,9 @@
   --color-bounce: #d9692f;
   --color-bounce-soft: #fdefe5;
   --color-bounce-deep: #a8481a;
+  --color-duration: #0e8a9c;
+  --color-duration-soft: #e2f4f7;
+  --color-duration-deep: #0a6573;
 
   --color-up: #0f7a4d;
   --color-up-soft: #dff3e9;
@@ -70,6 +73,9 @@
     --color-bounce: #dd7440;
     --color-bounce-soft: #301e14;
     --color-bounce-deep: #f3b893;
+    --color-duration: #2aa5b8;
+    --color-duration-soft: #10272c;
+    --color-duration-deep: #93d9e4;
 
     --color-up: #6bd6a6;
     --color-up-soft: #12301f;

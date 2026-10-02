@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from 'react'
-import type { EventRow, Row } from '../api'
-import { count, share } from '../format'
+import type { EventRow, PageRow, Row } from '../api'
+import { count, duration, share } from '../format'
 import Card from './Card'
 
 const SHOWN = 7
@@ -78,6 +78,20 @@ export default function Breakdown({ title, testId, rows, label = (n) => n, share
         bar: r.visitors,
         cells: [cell('v', count(r.visitors)),
           whole === undefined ? cell('p', count(r.pageviews), false) : cell('s', share(r.visitors, whole), false)],
+      }))} />
+  )
+}
+
+/** Top pages: visitors, views, and the visible time per measured visitor ("–" when none). */
+export function Pages({ rows, className }: { rows: PageRow[]; className?: string }) {
+  return (
+    <List title="Pages" testId="pages" className={className} columns={['Visitors', 'Views', 'Time']}
+      items={rows.map((r) => ({
+        key: r.name,
+        name: r.name,
+        bar: r.visitors,
+        cells: [cell('v', count(r.visitors)), cell('p', count(r.pageviews), false),
+          cell('t', r.time === null ? '–' : duration(r.time), false)],
       }))} />
   )
 }

@@ -1,7 +1,7 @@
 import { useCallback, useState } from 'react'
 import { Link, Navigate, useParams, useSearchParams } from 'react-router'
 import { api, ApiError, useApi, type Period, type Site as SiteRow, type Stats } from '../api'
-import Breakdown, { Events } from '../components/Breakdown'
+import Breakdown, { Events, Pages } from '../components/Breakdown'
 import { Segmented } from '../components/Card'
 import LiveCard from '../components/LiveCard'
 import StatCards, { type Metric } from '../components/StatCards'
@@ -149,7 +149,7 @@ function Body({ report, metric, onMetric, dim, siteId }: {
         <LiveCard siteId={siteId} />
       </div>
       <div className={`${gap} md:grid-cols-2`}>
-        <Breakdown title="Pages" testId="pages" rows={stats.pages} />
+        <Pages rows={stats.pages} />
         <Breakdown title="Sources" testId="sources" rows={stats.referrers} />
       </div>
       <div className={`${gap} md:grid-cols-2 md:items-start`}>
