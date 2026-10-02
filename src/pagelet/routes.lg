@@ -13,8 +13,10 @@
 ;; buffer and the auth settings, and the integrant component that builds
 ;; it. Tests call `handler` directly over a throwaway database.
 ;;
-;; Public: health, the tracker (/p.js and /api/event), login, and the
-;; dashboard's static files. Every other /api route takes a session cookie.
+;; Public: health, the tracker (/p.js and /api/event), login, the
+;; dashboard's static files, and a public site's three read routes (the
+;; site, its stats and who is online). Every other /api route takes a
+;; session cookie.
 ;; No SQL here: db, stats and auth own the queries; this file turns their
 ;; results into responses.
 
@@ -182,7 +184,18 @@
                     (fn [req]
                       (if-let [site (db/site-by-id db (-> req :params :id))]
                         (handle req site)
-                        not-found)))]
+                        not-found)))
+        ;; (handle req site) when the caller may read the site in the path:
+        ;; signed in (404 for no such site), or anyone when the site is
+        ;; public. Anonymous callers get the same 401 for a private site as
+        ;; for no site, so the API does not say which ids exist.
+        readable (fn [handle]
+                   (fn [req]
+                     (let [site (db/site-by-id db (-> req :params :id))]
+                       (cond
+                         (signed-in? req) (if site (handle req site) not-found)
+                         (:public site) (handle req site)
+                         :else unauthorized))))]
     [{:path "/api/health"
       :method :get
       :response (fn [_] (json-response 200 {:ok true}))}
@@ -232,7 +245,12 @@
       :method :get
       :response (protected (fn [_] (json-response 200 (db/sites db))))}
 
+     {:path "/api/sites/:id"
+      :method :get
+      :response (readable (fn [_ site] (json-response 200 site)))}
+
      ;; Body: {"domain": "..."}, and optionally "name" (the domain if blank).
+     ;; A new site is private, whatever the body says.
      {:path "/api/sites"
       :method :post
       :response (protected
@@ -247,17 +265,23 @@
                                       (ingest/refresh-sites! buffer)
                                       (json-response 201 site))))))))}
 
+     ;; Body: as for a new site, plus optionally "public" (true or false;
+     ;; absent keeps the site as it is).
      {:path "/api/sites/:id"
       :method :put
       :response (protected
                  (json-only
                   (with-site
                     (fn [req site]
-                      (let [{:keys [error name domain]} (site-input (read-json-body req))]
-                        (if error
-                          (bad-request error)
+                      (let [body (read-json-body req)
+                            {:keys [error name domain]} (site-input body)
+                            public? (if (contains? body :public) (:public body) (:public site))]
+                        (cond
+                          error (bad-request error)
+                          (not (boolean? public?)) (bad-request "public must be true or false")
+                          :else
                           (save-site! db domain (:id site)
-                                      #(db/update-site! db (:id site) name domain (:public site))
+                                      #(db/update-site! db (:id site) name domain public?)
                                       (fn [updated]
                                         (ingest/refresh-sites! buffer)
                                         (json-response 200 updated)))))))))}
@@ -276,20 +300,18 @@
 
      {:path "/api/sites/:id/stats"
       :method :get
-      :response (protected
-                 (with-site
-                  (fn [req site]
-                    (let [p (stats/period db (query-params req) (stats/today db))]
-                      (if (:error p)
-                        (bad-request (:error p))
-                        (json-response 200 (stats/stats db (:id site) p (stats/now db))))))))}
+      :response (readable
+                 (fn [req site]
+                   (let [p (stats/period db (query-params req) (stats/today db))]
+                     (if (:error p)
+                       (bad-request (:error p))
+                       (json-response 200 (stats/stats db (:id site) p (stats/now db)))))))}
 
      {:path "/api/sites/:id/realtime"
       :method :get
-      :response (protected
-                 (with-site
-                  (fn [_ site]
-                    (json-response 200 (stats/realtime db (:id site))))))}
+      :response (readable
+                 (fn [_ site]
+                   (json-response 200 (stats/realtime db (:id site)))))}
 
      {:path "/p.js"
       :method :get
