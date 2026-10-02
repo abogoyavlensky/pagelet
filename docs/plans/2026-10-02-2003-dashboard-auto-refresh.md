@@ -192,19 +192,21 @@ The Refresh button is not tied to this: it is offered for any period.
 **Files:**
 - Modify: `ui/src/components/Icons.tsx`, `ui/src/components/ActionsMenu.tsx`, `ui/src/components/TopBar.tsx`, `ui/src/components/LiveCard.tsx`, `ui/src/pages/Site.tsx`
 
-- [ ] **Step 1: `RefreshIcon` and `RefreshButton`** per Design (Lucide `refresh-cw` paths, `aria-label="Refresh"`, disabled and spinning while busy, `motion-safe:` on the spin).
+- [x] **Step 1: `RefreshIcon` and `RefreshButton`** per Design (Lucide `refresh-cw` paths, `aria-label="Refresh"`, disabled and spinning while busy, `motion-safe:` on the spin).
 
-- [ ] **Step 2: `TopBar` props** `onRefresh` and `refreshing`; render the button after the period control and before Settings / Sign out / "Sign in". Update the component's doc comment.
+- [x] **Step 2: `TopBar` props** `onRefresh` and `refreshing`; render the button after the period control and before Settings / Sign out / "Sign in". Update the component's doc comment.
 
-- [ ] **Step 3: `LiveCard`'s `nudge`** prop in the effect deps; update its doc comment.
+- [x] **Step 3: `LiveCard`'s `nudge`** prop in the effect deps; update its doc comment.
 
-- [ ] **Step 4: Wire `Site`**: the `nudge` state, `refreshNow`, `nudge` through `Body` to `LiveCard`, and `onRefresh`/`refreshing` on `TopBar` when `!waiting || viewer`.
+- [x] **Step 4: Wire `Site`**: the `nudge` state, `refreshNow`, `nudge` through `Body` to `LiveCard`, and `onRefresh`/`refreshing` on `TopBar` when `!waiting || viewer`.
 
-- [ ] **Step 5: Check by hand** in the dev server: the button dims the report and spins, the "Right now" card asks again (network panel), a public site's signed-out view has the button, and the top row fits at 360 px wide and at 768 px (signed in and as a visitor).
+- [x] **Step 5: Check by hand** in the dev server: the button dims the report and spins, the "Right now" card asks again (network panel), a public site's signed-out view has the button, and the top row fits at 360 px wide and at 768 px (signed in and as a visitor).
   Run: `cd ui && npx tsc -b && npm run lint`. Expected: no errors.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
   `git commit -m "Dashboard: a Refresh button in the top bar"`
+
+> Deviation: the top bar already overflowed by up to 37 px between 768 and 804 px wide (the period control plus a labelled Settings button), and Refresh made it 81 px. Settings now shows its label from `lg` instead of `md`, and the bar's gaps widen at `lg` instead of `sm`/`md`; measured with no horizontal overflow at 360, 640, 700, 768, 800, 1023, 1024 and 1280 px, and for a public site's visitor at 360 px.
 
 ### Task 4: The overview
 

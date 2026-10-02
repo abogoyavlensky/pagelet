@@ -53,6 +53,8 @@ export default function Site() {
   const period = readPeriod(query)
   const key = periodKey(period)
   const [metric, setMetric] = useState<Metric>('visitors')
+  // Bumped by the Refresh button, so the Right now card asks again too.
+  const [nudge, setNudge] = useState(0)
   // Signed out, this is a public site's read-only view.
   const viewer = useSession().state === 'out'
 
@@ -78,6 +80,8 @@ export default function Site() {
 
   if (viewer && sites.data === 'denied') return <Navigate to="/login" replace />
 
+  const refreshNow = () => { report.reload(); setNudge((n) => n + 1) }
+
   const choose = (p: Period) => {
     const q = new URLSearchParams({ period: p.period })
     if (p.period === 'custom') {
@@ -99,7 +103,8 @@ export default function Site() {
   return (
     <div>
       <TopBar sites={known} site={site} period={period} onPeriod={choose} live={!waiting}
-        onSaved={sites.reload} viewer={viewer} />
+        onSaved={sites.reload} viewer={viewer}
+        onRefresh={!waiting || viewer ? refreshNow : undefined} refreshing={report.loading} />
 
       {/* A failed load keeps the last report on screen, dimmed and marked as
           such, still worded for the period it was loaded for. */}
@@ -117,7 +122,7 @@ export default function Site() {
         </p>
       ) : <Waiting site={site} load={load} onOpen={setFirst} />)}
       {shown && !waiting && (
-        <Body report={shown} metric={metric} onMetric={setMetric} dim={report.loading || !!report.error} siteId={id} />
+        <Body report={shown} metric={metric} onMetric={setMetric} dim={report.loading || !!report.error} siteId={id} nudge={nudge} />
       )}
     </div>
   )
@@ -133,12 +138,13 @@ type DeviceView = (typeof DEVICE_VIEWS)[number]['value']
 
 const capitalised = (s: string) => s.charAt(0).toUpperCase() + s.slice(1)
 
-function Body({ report, metric, onMetric, dim, siteId }: {
+function Body({ report, metric, onMetric, dim, siteId, nudge }: {
   report: Report
   metric: Metric
   onMetric: (m: Metric) => void
   dim: boolean
   siteId: string
+  nudge: number
 }) {
   const { stats, period } = report
   const [devices, setDevices] = useState<DeviceView>('devices')
@@ -149,7 +155,7 @@ function Body({ report, metric, onMetric, dim, siteId }: {
       <StatCards stats={stats} period={period} />
       <div className={`${gap} lg:grid-cols-3`}>
         <Timeseries data={stats.timeseries} metric={metric} onMetric={onMetric} className="lg:col-span-2" />
-        <LiveCard siteId={siteId} />
+        <LiveCard siteId={siteId} nudge={nudge} />
       </div>
       <div className={`${gap} md:grid-cols-2`}>
         <Breakdown title="Pages" testId="pages" rows={stats.pages} />
