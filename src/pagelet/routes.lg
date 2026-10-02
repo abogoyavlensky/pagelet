@@ -247,6 +247,21 @@
       :method :get
       :response (protected (fn [_] (json-response 200 (db/sites db))))}
 
+     ;; Body: {"ids": [...]}, the sites in the owner's new order. Answers
+     ;; with every site in that order. Lenient (db/reorder-sites!): a list
+     ;; that went stale in another tab still saves, and the answer is the
+     ;; true list. A literal segment beats :id in ruuter, so this is not
+     ;; PUT /api/sites/:id; ids are hex, so no site is called "order".
+     {:path "/api/sites/order"
+      :method :put
+      :response (protected
+                 (json-only
+                  (fn [req]
+                    (let [ids (:ids (read-json-body req))]
+                      (if (and (sequential? ids) (every? string? ids))
+                        (json-response 200 (db/reorder-sites! db ids))
+                        (bad-request "ids must be a list of site ids."))))))}
+
      {:path "/api/sites/:id"
       :method :get
       :response (readable (fn [_ site] (json-response 200 site)))}

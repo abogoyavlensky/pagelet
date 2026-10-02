@@ -52,7 +52,7 @@ export default function TopBar({ sites, site, period, onPeriod, live, onSaved, o
         {viewer ? (
           <Wordmark className="shrink-0 [&>span:last-child]:hidden sm:[&>span:last-child]:inline" />
         ) : (
-          <Link to="/" aria-label="pagelet, all websites" className="shrink-0 rounded-lg">
+          <Link to="/" aria-label="Pagelet, all websites" className="shrink-0 rounded-lg">
             <Wordmark className={site ? '[&>span:last-child]:hidden sm:[&>span:last-child]:inline' : ''} />
           </Link>
         )}

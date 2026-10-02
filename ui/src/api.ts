@@ -98,6 +98,8 @@ export const api = {
   updateSite: (id: string, domain: string, isPublic?: boolean) =>
     request<Site>('PUT', `/api/sites/${id}`, { domain, public: isPublic }),
   deleteSite: (id: string) => request<{ ok: true }>('DELETE', `/api/sites/${id}`),
+  /** Every site's id in the new order; answers with every site in it. */
+  reorderSites: (ids: string[]) => request<Site[]>('PUT', '/api/sites/order', { ids }),
   stats: (id: string, p: Period) =>
     request<Stats>('GET', `/api/sites/${id}/stats?${periodQuery(p)}`),
   realtime: (id: string) => request<Realtime>('GET', `/api/sites/${id}/realtime`),
@@ -111,6 +113,8 @@ export type Loaded<T> = {
   reload: () => void
   /** Ask again without `loading`: the last data stays as it is until the answer. */
   refresh: () => void
+  /** Replace the data in place. Any answer still in flight is dropped. */
+  mutate: (data: T) => void
 }
 
 /**
@@ -119,6 +123,8 @@ export type Loaded<T> = {
  * the last success stays while a reload is in flight, so a period switch
  * does not blank the page. `refresh` asks again quietly, for a page that
  * keeps itself current: its answer lands like any other, a failure included.
+ * `mutate` sets the data from outside, for a change the page made itself;
+ * no older ask may land on top of it.
  */
 export function useApi<T>(load: () => Promise<T>, deps: unknown[]): Loaded<T> {
   const [data, setData] = useState<T>()
@@ -146,5 +152,12 @@ export function useApi<T>(load: () => Promise<T>, deps: unknown[]): Loaded<T> {
     return () => { gen.current++ }
   }, [start, tick])
 
-  return { data, error, loading, reload: () => setTick((t) => t + 1), refresh: () => start(true) }
+  const mutate = (d: T) => {
+    gen.current++
+    setData(d)
+    setError(undefined)
+    setLoading(false)
+  }
+
+  return { data, error, loading, reload: () => setTick((t) => t + 1), refresh: () => start(true), mutate }
 }

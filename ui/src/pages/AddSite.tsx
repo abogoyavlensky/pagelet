@@ -31,7 +31,7 @@ export default function AddSite() {
       <TopBar />
       <form onSubmit={submit} className="max-w-lg rounded-card border border-hairline bg-surface p-5 sm:p-8">
         <h1 className="text-2xl font-semibold tracking-tight">Add a website</h1>
-        <p className="mt-1 text-sm text-muted">Its domain is all pagelet needs. You get the tracking code next.</p>
+        <p className="mt-1 text-sm text-muted">Its domain is all Pagelet needs. You get the tracking code next.</p>
         <label htmlFor="site-domain" className="mt-6 block text-sm font-medium text-ink">Domain</label>
         <input id="site-domain" value={domain} onChange={(e) => { setDomain(e.target.value); setError(undefined) }}
           placeholder="example.com" autoFocus autoCapitalize="none" spellCheck={false}

@@ -110,8 +110,8 @@
             (is (= {:name domain :domain domain} (select-keys (:json res) [:name :domain])))))
         (is (= 400 (:status (send-json handler :post "/api/sites" {:name (apply str (repeat 65 "n")) :domain "long.com"} me))))
         (let [other (:json (send-json handler :post "/api/sites" {:name "Another" :domain "another.org"} me))]
-          ;; Listed by domain.
-          (is (= ["another.org" "bare.com" "blank.com" "example.com"]
+          ;; Listed in the owner's order: as created until moved.
+          (is (= ["example.com" "bare.com" "blank.com" "another.org"]
                  (map :domain (:json (call handler :get "/api/sites" nil me)))))
           ;; Update: rename, move to a new domain, refuse a taken one.
           (let [res (send-json handler :put (str "/api/sites/" (:id site)) {:name "Renamed" :domain "example.net"} me)]
@@ -233,6 +233,39 @@
         (is (false? (:public (:json (send-json handler :put (str "/api/sites/" (:id pub)) {:domain "public.com" :public false} me)))))
         (doseq [uri (reads (:id pub))]
           (is (= 401 (:status (anon uri))) uri))))))
+
+;; The owner's order of the sites: one PUT with every id, answered with the
+;; list in its new order.
+
+(deftest sites-order
+  (with-handler
+    (fn [handler _ _]
+      (let [me (login handler)
+            [a b c] (map #(:json (send-json handler :post "/api/sites" {:domain %} me))
+                         ["a.com" "b.com" "c.com"])
+            order! (fn [body & [headers]] (send-json handler :put "/api/sites/order" body headers))
+            listed (fn [] (map :domain (:json (call handler :get "/api/sites" nil me))))]
+        (is (= 401 (:status (order! {:ids [(:id c) (:id b) (:id a)]}))))
+        (is (= 415 (:status (call handler :put "/api/sites/order" "{\"ids\": []}" me))))
+        (doseq [body [{} {:ids "a"} {:ids {:a 1}} {:ids [1 2]} {:ids [(:id a) nil]}]]
+          (let [res (order! body me)]
+            (is (= 400 (:status res)) (pr-str body))
+            (is (= "ids must be a list of site ids." (:error (:json res))) (pr-str body))))
+        (is (= ["a.com" "b.com" "c.com"] (listed)))
+        (let [res (order! {:ids [(:id c) (:id a) (:id b)]} me)]
+          (is (= 200 (:status res)))
+          ;; The same shape as the list.
+          (is (= {:id (:id c) :domain "c.com" :public false}
+                 (select-keys (first (:json res)) [:id :domain :public])))
+          (is (= ["c.com" "a.com" "b.com"] (map :domain (:json res)))))
+        (is (= ["c.com" "a.com" "b.com"] (listed)))
+        ;; A stale list still saves: the unknown id is skipped, the missing
+        ;; site keeps its place after the listed ones.
+        (is (= ["b.com" "c.com" "a.com"]
+               (map :domain (:json (order! {:ids [(:id b) "000000000000" (:id c)]} me)))))
+        ;; A site's own routes still answer under /api/sites/:id.
+        (is (= 200 (:status (send-json handler :put (str "/api/sites/" (:id a)) {:domain "a.com"} me))))
+        (is (= 200 (:status (call handler :get (str "/api/sites/" (:id a)) nil me))))))))
 
 (deftest static-files
   (with-handler
