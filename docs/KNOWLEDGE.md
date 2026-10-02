@@ -313,3 +313,26 @@ pagelet deploys to the `personal` cluster (linkboard's) with `uc` 0.20.0;
   request sent during the switch came back 200 about 1.1 s late. The
   throwaway site and its 2 pageviews were still there afterwards, so the
   bind-mounted DuckDB file survives a replacement.
+
+## Public sites (2026-10-02)
+
+- `alter table sites add column is_public boolean default false` fills the
+  default into existing rows; DuckDB takes no `not null` in `add column`.
+  The duckdb package returns the column as a real boolean (`true?` and
+  `false?` hold), so nothing converts it.
+- The column is `is_public` (`public` is a schema name) and is read back
+  `as "public"`.
+- An insert that lists no columns (`insert into sites values (...)`)
+  breaks as soon as a column is added; `db/create-site!` and the ingest
+  test fixture name theirs.
+- A public site's reports answer 200 without the cookie, so a dashboard
+  whose session has run out keeps the owner's chrome until it next asks
+  `/api/me` (a reload) or makes a session-only call; then it falls back to
+  the visitor's view.
+- `browser.newContext()` in a spec does not take the config's `use`
+  options; pass `{ baseURL }` from the fixture. Launch args (the user agent
+  flag) do carry over, since the browser is shared.
+- On 2026-10-02 port 8099 was held by another project's server
+  (quickmeet). `E2E_PORT=8098 npx playwright test` (after `lgx build`)
+  runs the specs elsewhere; `tracker.spec.js` points its fixture at
+  `baseURL` for this.

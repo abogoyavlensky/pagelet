@@ -72,10 +72,18 @@ a grid of cards:
 
 A visit is a visitor's day (see What is collected), and a bounce is a
 visitor whose only event in the period is one page view. Settings hold the
-tracking code, the domain, and deleting the site with its events. A site
+tracking code, the domain, whether the dashboard is public, and deleting
+the site with its events. A site
 is added by its domain alone; until its first event arrives, its page
 shows the tracking code and waits, and the first visit turns that into
 "You're live".
+
+A site is private until its Settings make it public. Then anyone with its
+link (`/sites/<id>`, shown in Settings) can read the whole dashboard
+without signing in: every number and list, the custom events, and who is
+online. They cannot change anything, and the site list and every other
+site stay private. Turning it off closes the page at once; a visitor who
+then reloads lands on the login page. The overview marks public sites.
 
 ## Tracking a site
 
@@ -158,11 +166,12 @@ Sessions for the dashboard use one cookie on the analytics host only
 
 The unit tests stop at the handler. The browser tests drive the real
 binary: `lgx e2e` builds the dashboard and `bin/pagelet`, starts it on
-port 8099 with a throwaway database under `e2e/.tmp`, and runs headless
+port 8099 (or `E2E_PORT`) with a throwaway database under `e2e/.tmp`, and runs headless
 Chromium through a single-page app with the tracker (page views on load,
 `pushState` and Back, a custom event) and through the dashboard (sign-in,
 add a site, its first visit, the numbers and lists, the metric and period
-switches, who is online, delete). Playwright stops the app
+switches, who is online, delete; a public site read without a session,
+and closed again). Playwright stops the app
 when the run ends, so it coexists with an `lgx run` on 8080.
 
 ```
