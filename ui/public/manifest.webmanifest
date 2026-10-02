@@ -1,6 +1,6 @@
 {
-  "name": "pagelet",
-  "short_name": "pagelet",
+  "name": "Pagelet",
+  "short_name": "Pagelet",
   "description": "Self-hosted web analytics",
   "start_url": "/",
   "scope": "/",

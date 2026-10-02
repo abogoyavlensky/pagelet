@@ -7,7 +7,7 @@ export default function Wordmark({ className = '' }: { className?: string }) {
         <path d="M8 21 L13 15 L18 18 L24 10" fill="none" stroke="var(--color-visitors)" strokeWidth="3"
           strokeLinecap="round" strokeLinejoin="round" />
       </svg>
-      <span>pagelet</span>
+      <span>Pagelet</span>
     </span>
   )
 }
