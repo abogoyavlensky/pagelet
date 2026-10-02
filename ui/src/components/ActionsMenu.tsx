@@ -60,10 +60,18 @@ const input = 'min-w-0 flex-1 rounded-lg border border-hairline bg-paper px-3 py
 /**
  * Whether anyone with the link may read the dashboard. Saved as soon as it
  * is ticked; the dialog stays open, and the site list reloads behind it.
+ * Its request carries the domain too, so it and a domain save never run at
+ * once: `disabled` while the domain saves, and `onBusy` while it saves.
  */
-function PublicDashboard({ site, onChanged }: { site: Site; onChanged: () => void }) {
+function PublicDashboard({ site, onChanged, disabled, onBusy }: {
+  site: Site
+  onChanged: () => void
+  disabled: boolean
+  onBusy: (busy: boolean) => void
+}) {
   const [isPublic, setIsPublic] = useState(site.public)
-  const [busy, setBusy] = useState(false)
+  const [busy, setBusyState] = useState(false)
+  const setBusy = (b: boolean) => { setBusyState(b); onBusy(b) }
   const [error, setError] = useState<string>()
   const [copied, setCopied] = useState(false)
   const link = `${window.location.origin}/sites/${site.id}`
@@ -93,7 +101,7 @@ function PublicDashboard({ site, onChanged }: { site: Site; onChanged: () => voi
     <section className="border-t border-hairline pt-6">
       <h3 className="text-sm font-semibold">Public dashboard</h3>
       <label className="mt-2 flex items-start gap-2.5 text-sm text-ink">
-        <input type="checkbox" checked={isPublic} disabled={busy} onChange={(e) => toggle(e.target.checked)}
+        <input type="checkbox" checked={isPublic} disabled={busy || disabled} onChange={(e) => toggle(e.target.checked)}
           className="mt-0.5 size-4 shrink-0 accent-[var(--color-accent)]" />
         <span>
           Anyone with the link can view this dashboard
@@ -122,6 +130,7 @@ function Settings({ site, onSaved, onChanged }: { site: Site; onSaved: () => voi
   const [domain, setDomain] = useState(site.domain)
   const [error, setError] = useState<string>()
   const [busy, setBusy] = useState(false)
+  const [sharing, setSharing] = useState(false)
   const [confirm, setConfirm] = useState('')
   const [removeError, setRemoveError] = useState<string>()
 
@@ -161,14 +170,14 @@ function Settings({ site, onSaved, onChanged }: { site: Site; onSaved: () => voi
         <div className="mt-2 flex gap-2">
           <input id="settings-domain" value={domain} onChange={(e) => setDomain(e.target.value)}
             autoCapitalize="none" spellCheck={false} className={`${input} focus:border-accent`} />
-          <button type="submit" disabled={busy || domain.trim() === site.domain}
+          <button type="submit" disabled={busy || sharing || domain.trim() === site.domain}
             className="rounded-lg bg-ink px-4 text-sm font-medium text-paper transition-opacity disabled:opacity-40">
             Save
           </button>
         </div>
         {error && <p role="alert" className="mt-2 text-sm text-danger">{error}</p>}
       </form>
-      <PublicDashboard site={site} onChanged={onChanged} />
+      <PublicDashboard site={site} onChanged={onChanged} disabled={busy} onBusy={setSharing} />
       <section className="border-t border-hairline pt-6">
         <h3 className="text-sm font-semibold text-danger">Delete this site</h3>
         <p className="mt-1 text-sm text-muted">
