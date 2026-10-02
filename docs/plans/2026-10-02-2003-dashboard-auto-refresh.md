@@ -228,14 +228,16 @@ The Refresh button is not tied to this: it is offered for any period.
 **Files:**
 - Create: `e2e/tests/refresh.spec.js`
 
-- [ ] **Step 1: Write the spec** as under Design → Tests, with a header comment in the style of the other specs. Reuse `apiLogin`, `createSite`, `deleteSite`, `stats`, `uniqueDomain` from `helpers.js`; copy the small `signIn(page)` from `public.spec.js` into `helpers.js` and import it in both specs rather than duplicating it.
+- [x] **Step 1: Write the spec** as under Design → Tests, with a header comment in the style of the other specs. Reuse `apiLogin`, `createSite`, `deleteSite`, `stats`, `uniqueDomain` from `helpers.js`; copy the small `signIn(page)` from `public.spec.js` into `helpers.js` and import it in both specs rather than duplicating it.
 
-- [ ] **Step 2: Run it**
+- [x] **Step 2: Run it**
   Run: `mise exec -- lgx e2e`. Expected: every spec passes, the new one included.
   Then `cd e2e && npx playwright test refresh --repeat-each 3`. Expected: all green (the spec must not be flaky against the flush interval).
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
   `git commit -m "e2e: the dashboard refreshes by button, by timer and on return"`
+
+> Deviation: the steps run in the order button, timer, return to the tab, failed refresh, overview (the failure step stays on the site page, as Design says). The Refresh locator is `exact: true`, because a test domain starting with "refresh" also names the site switcher. Checked that the spec fails with `REFRESH_MS` doubled.
 
 ### Task 6: Docs and the full check
 
