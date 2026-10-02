@@ -278,12 +278,14 @@ There is no unit-testable code here. The checks are:
   Run: `mise exec -- lgx test`
   Expected: PASS
 
-- [ ] **Step 2: Push and open the PR**
+- [x] **Step 2: Push and open the PR**
   `git push -u origin releases`, then `gh pr create` with a title like `Releases: image on ghcr.io, binaries, quickstart`. Link the PR to the thread (`link_pull_request`) if the tool is available.
 
-- [ ] **Step 3: Wait for CI on the PR**
+- [x] **Step 3: Wait for CI on the PR**
   Run: `gh pr checks --watch`
   Expected: `test` passes, including "Smoke-test the image" with the changed Dockerfile.
+
+> PR #14. CI green on both runs: browser tests 8 passed; the smoke test built the new image (`RUN mkdir -p /app/data` layer) and got `{"ok":true}`.
 
 - [ ] **Step 4: Merge when the user approves the PR**, as earlier PRs were merged (squash). The master deploy runs; check it stays green (`gh run watch` on the deploy run): the deployed container now gets `DB_PATH` from both the image and compose, same value.
 
