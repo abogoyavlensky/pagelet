@@ -195,23 +195,25 @@ There is no unit-testable code here. The checks are:
 **Files:**
 - Create: `docs/backlog/release-binaries-need-glibc-2-39.md`
 
-- [ ] **Step 1: Branch**
+- [x] **Step 1: Branch**
   `git switch -c releases`
 
-- [ ] **Step 2: Write the entry**
+- [x] **Step 2: Write the entry**
   Follow the existing entries' shape (read `docs/backlog/duckdb-backups.md` first). Starts with `**Status: open**`. Content: release binaries are built on ubuntu-24.04 and need glibc 2.39+, which leaves out Debian 12 (2.36), Ubuntu 22.04 (2.35) and RHEL 9 (2.34); those users must use the image. Possible fix: build the release binaries in an older container (for example `debian:11`, glibc 2.31) and check with `objdump -T bin/pagelet | grep GLIBC_` what the floor becomes; unknown: whether the prebuilt static libduckdb links against that base's libstdc++. The image would then also be free to move to an older base.
 
-- [ ] **Step 3: Commit (its own commit, per AGENTS.md)**
+- [x] **Step 3: Commit (its own commit, per AGENTS.md)**
   `git add docs/backlog && git commit -m "Backlog: release binaries need glibc 2.39"`
+
+> Deviation: Step 1 (the branch) was done before the plan commit, so the plan itself lives on `releases`.
 
 ### Task 1b: The license
 
 **Files:**
 - Create: `LICENSE`
 
-- [ ] **Step 1: Write `LICENSE`**: the standard MIT License text, unmodified, with the line `Copyright (c) 2026 Andrey Bogoyavlenskiy`.
+- [x] **Step 1: Write `LICENSE`**: the standard MIT License text, unmodified, with the line `Copyright (c) 2026 Andrey Bogoyavlenskiy`.
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
   `git add LICENSE && git commit -m "MIT license"`
 
 ### Task 2: The image: data directory, default DB_PATH, label
@@ -219,13 +221,13 @@ There is no unit-testable code here. The checks are:
 **Files:**
 - Modify: `Dockerfile`
 
-- [ ] **Step 1: Edit the Dockerfile** as in "The Dockerfile" above. Keep the existing header comment and add the sentence about `release.yml`.
+- [x] **Step 1: Edit the Dockerfile** as in "The Dockerfile" above. Keep the existing header comment and add the sentence about `release.yml`.
 
-- [ ] **Step 2: Check what can be checked locally**
+- [x] **Step 2: Check what can be checked locally**
   Run: `grep -n "DB_PATH\|/app/data" Dockerfile compose.yaml scripts/docker-smoke.sh`
   Expected: the Dockerfile's default equals compose's `DB_PATH` (`/app/data/pagelet.duckdb`); the smoke script still overrides it with `/tmp/p.duckdb`. Docker itself cannot run on the dev box; CI's smoke test covers the image in Task 5.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
   `git commit -am "Image: a data directory and a default DB_PATH"`
 
 ### Task 3: The release workflow
@@ -233,43 +235,46 @@ There is no unit-testable code here. The checks are:
 **Files:**
 - Create: `.github/workflows/release.yml`
 
-- [ ] **Step 1: Write the workflow** as in "`release.yml` in detail". Match the comment style of `test.yml` and `deploy.yml`.
+- [x] **Step 1: Write the workflow** as in "`release.yml` in detail". Match the comment style of `test.yml` and `deploy.yml`.
 
-- [ ] **Step 2: Check it parses**
+- [x] **Step 2: Check it parses**
   Run: `python3 -c "import yaml; d=yaml.safe_load(open('.github/workflows/release.yml')); print(list(d['jobs']))"`
   Expected: `['test', 'build', 'publish']`
   If `actionlint` is installed (`command -v actionlint`), run `actionlint .github/workflows/release.yml`; expected: no output.
 
-- [ ] **Step 3: Read it once against these traps**
+- [x] **Step 3: Read it once against these traps**
   - every push/login/publish step or job has the full guard, `github.event_name == 'push' && github.ref_type == 'tag'`;
   - the arm64 cache prefix is `runtimes-arm64-Linux`, which `runtimes-Linux-` does not match;
   - `publish` has `contents: write` and `packages: write`, `build` has `contents: read` and `packages: write`;
   - `${GITHUB_REF_NAME#v}` is used inside `run:` (shell), never inside `${{ }}`.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
   `git add .github/workflows/release.yml && git commit -m "Release workflow: image on ghcr.io, binaries on a GitHub release"`
+
+> Deviation: `actionlint` is a mise shim with no version set; ran it as `mise exec actionlint@1.7.12 -- actionlint` (clean on all three workflows). Codex (round 1, Tasks 2-3 together) flagged a concurrency clash with `test.yml`. Its premise was wrong (a `branches-ignore`-only filter does not fire on tag pushes), but a dry run on master did share `test-refs/heads/master` with a deploy's tests. Fixed by making `test.yml`'s group `test-${{ github.workflow }}-${{ github.ref }}` (commit "Tests: a concurrency group per calling workflow").
 
 ### Task 4: README
 
 **Files:**
 - Modify: `README.md`
 
-- [ ] **Step 1: Find out whether the server creates `DB_PATH`'s directory**
+- [x] **Step 1: Find out whether the server creates `DB_PATH`'s directory**
   Run: `mise exec -- lgx lgx:build && mkdir -p .tmp && PORT=8097 DB_PATH=.tmp/nodir-$$/p.duckdb ADMIN_PASSWORD=x timeout 5 ./bin/pagelet; echo "exit $?"`
   Expected: either it serves until the timeout (exit 124: the directory is created, drop the "must exist" sentence and the `mkdir`) or it fails at startup (keep the sentence and put `mkdir -p /var/lib/pagelet` in the quickstart's command block). Remove `.tmp/nodir-*` afterwards.
 
-- [ ] **Step 2: Write the sections** as in "The README" above: `## Quickstart`, retitle `## Run` to `## Run from source`, touch up `## Docker` and `## Configuration`, add `## Releases`, and end the file with `## License` ("MIT, see [LICENSE](LICENSE)."). Use /writing-clearly.
+- [x] **Step 2: Write the sections** as in "The README" above: `## Quickstart`, retitle `## Run` to `## Run from source`, touch up `## Docker` and `## Configuration`, add `## Releases`, and end the file with `## License` ("MIT, see [LICENSE](LICENSE)."). Use /writing-clearly.
 
-- [ ] **Step 3: Check the links and names**
+- [x] **Step 3: Check the links and names**
   Run: `grep -n "ghcr.io\|releases/latest\|pagelet-linux" README.md .github/workflows/release.yml`
   Expected: the image name and the asset names in the README are exactly those the workflow produces (`ghcr.io/abogoyavlensky/pagelet`, `pagelet-linux-amd64.tar.gz`, `pagelet-linux-arm64.tar.gz`, `checksums.txt`).
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
   `git commit -am "README: quickstart for self-hosting with Docker or the binary"`
 
+> Deviation: the server does not create `DB_PATH`'s directory ("IO Error: Cannot open file ... No such file or directory"). The binary quickstart uses the default `pagelet.duckdb` in the current directory instead of `/var/lib/pagelet/...`, which needs no `mkdir` or root. The Configuration table says the directory must exist. The Docker update steps use `docker stop` (SIGTERM, flushes the buffer), not `docker rm -f`.
 ### Task 5: PR, merge, dry run
 
-- [ ] **Step 1: Unit tests still pass**
+- [x] **Step 1: Unit tests still pass**
   Run: `mise exec -- lgx test`
   Expected: PASS
 
