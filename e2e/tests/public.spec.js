@@ -37,8 +37,12 @@ test('a public site reads without a session, and closes again', async ({ browser
   await signIn(page);
   await page.goto(url);
   await expect(page.getByTestId('stat-pageviews')).toHaveText(/^Pageviews\s*2(?!\d)/, { timeout: 20_000 });
+  // The box moves before the save lands, so wait for the save itself.
+  const saved = () => page.waitForResponse((r) => r.url().endsWith(`/api/sites/${site.id}`) && r.request().method() === 'PUT' && r.ok());
   await page.getByRole('button', { name: 'Site settings' }).click();
+  const madePublic = saved();
   await page.getByLabel('Anyone with the link can view this dashboard').check();
+  await madePublic;
   await expect(page.getByLabel('Public link')).toHaveValue(new RegExp(`/sites/${site.id}$`));
 
   // The visitor reads it, with nothing of the owner's on screen.
@@ -70,7 +74,9 @@ test('a public site reads without a session, and closes again', async ({ browser
 
   // Private again: closed at once.
   const checkbox = page.getByLabel('Anyone with the link can view this dashboard');
+  const madePrivate = saved();
   await checkbox.uncheck();
+  await madePrivate;
   await expect(page.getByLabel('Public link')).toHaveCount(0);
   await visitor.reload();
   await expect(visitor).toHaveURL(/\/login$/);
