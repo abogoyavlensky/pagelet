@@ -12,6 +12,9 @@ export const userAgent =
 
 export const password = 'test';
 
+// 8099 unless E2E_PORT says otherwise, for when another app holds it.
+const port = process.env.E2E_PORT ?? '8099';
+
 export default defineConfig({
   testDir: 'tests',
   timeout: 60_000,
@@ -19,7 +22,7 @@ export default defineConfig({
   retries: process.env.CI ? 1 : 0,
   reporter: [['list'], ['html', { open: 'never' }]],
   use: {
-    baseURL: 'http://127.0.0.1:8099',
+    baseURL: `http://127.0.0.1:${port}`,
     trace: 'retain-on-failure',
     launchOptions: {
       args: [
@@ -35,14 +38,14 @@ export default defineConfig({
   projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'], userAgent } }],
   webServer: {
     command: 'rm -f .tmp/pagelet.duckdb .tmp/pagelet.duckdb.wal && mkdir -p .tmp && ../bin/pagelet',
-    url: 'http://127.0.0.1:8099/api/health',
+    url: `http://127.0.0.1:${port}/api/health`,
     reuseExistingServer: false,
     timeout: 60_000,
     stdout: 'pipe',
     stderr: 'pipe',
     // A dedicated port so a developer's `lgx run` on 8080 can coexist.
     env: {
-      PORT: '8099',
+      PORT: port,
       DB_PATH: '.tmp/pagelet.duckdb',
       ADMIN_PASSWORD: password,
       FLUSH_INTERVAL_MS: '300',

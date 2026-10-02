@@ -58,7 +58,15 @@
      :up ["alter table events add column timezone varchar"
           "alter table events add column country varchar"]
      :down ["alter table events drop column country"
-            "alter table events drop column timezone"]})])
+            "alter table events drop column timezone"]})
+
+   ;; Whether anyone may read the site's dashboard without signing in
+   ;; (routes.lg, readable). Off for every site until its owner turns it on.
+   ;; DuckDB takes no constraint in add column, hence a default only.
+   (rt/sql-migration
+    {:id "006-add-sites-public"
+     :up ["alter table sites add column is_public boolean default false"]
+     :down ["alter table sites drop column is_public"]})])
 
 (defn- config [conn]
   {:datastore (rt/sql-database conn)

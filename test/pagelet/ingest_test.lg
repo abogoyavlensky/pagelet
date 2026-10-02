@@ -82,7 +82,7 @@
 (defn- fresh-conn []
   (let [conn (duckdb/open "")]
     (migrations/migrate! conn)
-    (db/execute! conn ["insert into sites values ('site1', 'Example', 'example.com', now() at time zone 'UTC')"])
+    (db/execute! conn ["insert into sites (id, name, domain, created_at) values ('site1', 'Example', 'example.com', now() at time zone 'UTC')"])
     conn))
 
 (defn- row [ip ua & [site-id]]

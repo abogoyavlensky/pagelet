@@ -9,14 +9,16 @@ test.use({ timezoneId: 'Europe/Amsterdam' });
 
 const spa = readFileSync(new URL('../fixtures/spa.html', import.meta.url), 'utf8');
 
-test('page views and a custom event from a SPA', async ({ page, request }) => {
+test('page views and a custom event from a SPA', async ({ page, request, baseURL }) => {
   await apiLogin(request);
   const domain = uniqueDomain('tracker');
   const site = await createSite(request, 'Tracker', domain);
 
-  // The app's host does not exist: every path answers with the fixture.
+  // The app's host does not exist: every path answers with the fixture,
+  // its tracker pointed at the server under test (E2E_PORT may move it).
+  const body = spa.replaceAll('http://127.0.0.1:8099', baseURL);
   await page.route(`http://${domain}/**`, (route) =>
-    route.fulfill({ contentType: 'text/html', body: spa }));
+    route.fulfill({ contentType: 'text/html', body }));
 
   await page.goto(`http://${domain}/`);
   await page.click('#about');
