@@ -1,5 +1,7 @@
 # Installable Dashboard Implementation Plan
 
+**Status: completed 2026-10-02** on branch `pwa`.
+
 > **For agentic workers:** Use executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Make the dashboard installable as an app (a web app manifest, PNG icons, an Apple touch icon and theme colours) so it opens from a phone's home screen in its own window, with no service worker and no offline mode.
@@ -198,20 +200,20 @@ line in the README; no code is needed.
 - Modify: `src/pagelet/routes.lg`
 - Test: `test/pagelet/routes_test.lg`
 
-- [ ] **Step 1: Write the test.** In `static-files`, add: when
+- [x] **Step 1: Write the test.** In `static-files`, add: when
   `(call handler :get "/app/manifest.webmanifest")` answers 200, its
   `Content-Type` is `application/manifest+json`, and
   `/app/icon-192.png` answers 200 with `image/png`. Skip both checks when
   the manifest answers 404 (dashboard not built). Read the file's existing
   style first and match it.
-- [ ] **Step 2: Add the two entries** `"png" "image/png"` and
+- [x] **Step 2: Add the two entries** `"png" "image/png"` and
   `"webmanifest" "application/manifest+json"` to `content-types` in
   `src/pagelet/routes.lg`.
-- [ ] **Step 3: Run the unit tests.**
+- [x] **Step 3: Run the unit tests.**
   Run: `mise exec -- lgx test`
   Expected: PASS. The new checks are skipped until the files exist and are
   built (Task 3).
-- [ ] **Step 4: Commit.**
+- [x] **Step 4: Commit.**
   `git commit -m "Serve PNG icons and the web app manifest"`
 
 ### Task 2: Generate the icons
@@ -220,7 +222,7 @@ line in the README; no code is needed.
 - Create: `scripts/gen-icons.mjs`
 - Create: `ui/public/icon-192.png`, `ui/public/icon-512.png`, `ui/public/apple-touch-icon.png`
 
-- [ ] **Step 1: Write `scripts/gen-icons.mjs`** as the Design's "The icon"
+- [x] **Step 1: Write `scripts/gen-icons.mjs`** as the Design's "The icon"
   section describes: `ui/public/favicon.svg` read and its `rect`'s `rx`
   removed, sizes
   `{ 'icon-192': 192, 'icon-512': 512, 'apple-touch-icon': 180 }`,
@@ -228,15 +230,15 @@ line in the README; no code is needed.
   paths resolved from `import.meta.url` so it runs from any directory.
   Start the file with a comment on usage and on why it lives outside the
   build, in the style of `scripts/gen-timezones.sh`.
-- [ ] **Step 2: Run it.**
+- [x] **Step 2: Run it.**
   Run: `mise exec -- node scripts/gen-icons.mjs`
   Expected: three PNGs in `ui/public/`. If Playwright's browser is missing,
   run `mise exec -- lgx e2e-setup` first.
-- [ ] **Step 3: Check the output.** `file ui/public/*.png` reports 192×192,
+- [x] **Step 3: Check the output.** `file ui/public/*.png` reports 192×192,
   512×512 and 180×180 PNGs. Open `icon-512.png` with the Read tool and
   check that the blue line is centred on a soft blue square that fills the
   image, with no rounded corners and no transparent border.
-- [ ] **Step 4: Commit.**
+- [x] **Step 4: Commit.**
   `git commit -m "Dashboard: app icons from the favicon"`
 
 ### Task 3: The manifest and the head tags
@@ -245,21 +247,21 @@ line in the README; no code is needed.
 - Create: `ui/public/manifest.webmanifest`
 - Modify: `ui/index.html`
 
-- [ ] **Step 1: Write `ui/public/manifest.webmanifest`** exactly as in the
+- [x] **Step 1: Write `ui/public/manifest.webmanifest`** exactly as in the
   Design.
-- [ ] **Step 2: Add the four tags** from the Design to `ui/index.html`'s
+- [x] **Step 2: Add the four tags** from the Design to `ui/index.html`'s
   `<head>`, after the favicon link.
-- [ ] **Step 3: Build and check the rewrite.**
+- [x] **Step 3: Build and check the rewrite.**
   Run: `mise exec -- lgx ui-build && grep -E 'manifest|apple-touch|theme-color' resources/public/app/index.html`
   Expected: `href="/app/manifest.webmanifest"` and
   `href="/app/apple-touch-icon.png"`, and both `theme-color` metas. If Vite
   left either `href` without `/app/`, write that `href` with the `/app/`
   prefix in `ui/index.html`, note it in `docs/KNOWLEDGE.md`, and rebuild.
   `ls resources/public/app` lists the manifest and the three PNGs.
-- [ ] **Step 4: Run the unit tests again**, now against the built files.
+- [x] **Step 4: Run the unit tests again**, now against the built files.
   Run: `mise exec -- lgx test`
   Expected: PASS, with the Task 1 checks now running.
-- [ ] **Step 5: Commit.**
+- [x] **Step 5: Commit.**
   `git commit -m "Dashboard: installable, with a web app manifest and theme colours"`
 
 ### Task 4: Browser test through the binary
@@ -267,18 +269,18 @@ line in the README; no code is needed.
 **Files:**
 - Create: `e2e/tests/install.spec.js`
 
-- [ ] **Step 1: Write the spec** as the Design's "Testing" section
+- [x] **Step 1: Write the spec** as the Design's "Testing" section
   describes. Use the `request` fixture for the manifest and icons, and
   `page.goto('/')` plus locators for the head tags. Read the expected bytes
   with `fs.readFileSync` from `ui/public/` (resolve the path from
   `import.meta.url`) and compare with `Buffer.compare(...) === 0`. Open the
   file with a short comment in the style of `dashboard.spec.js`.
-- [ ] **Step 2: Run the browser tests.**
+- [x] **Step 2: Run the browser tests.**
   Run: `mise exec -- lgx e2e`
   Expected: PASS, both the existing specs and `install.spec.js`. If the
   PNG bytes differ, stop and report it to the user (see Design, "The
   server change"). Do not change `static-response` under this plan.
-- [ ] **Step 3: Commit.**
+- [x] **Step 3: Commit.**
   `git commit -m "e2e: the manifest and icons through the binary"`
 
 ### Task 5: Docs
@@ -287,13 +289,13 @@ line in the README; no code is needed.
 - Modify: `README.md`
 - Modify: `docs/KNOWLEDGE.md`
 
-- [ ] **Step 1: README.** In "The dashboard", add two or three sentences:
+- [x] **Step 1: README.** In "The dashboard", add two or three sentences:
   the dashboard can be installed as an app (Chrome or Edge "Install", or
   "Add to Home Screen" on a phone), it has no offline mode, and on iOS the
   installed app keeps its own sign-in, so users may need to sign in once
   more there.
   Use `/writing-clearly`.
-- [ ] **Step 2: KNOWLEDGE.** Add a short dated section, "Installable
+- [x] **Step 2: KNOWLEDGE.** Add a short dated section, "Installable
   dashboard (2026-10-01)": PNGs come back from the binary byte for byte as
   `image/png` (checked by `e2e/tests/install.spec.js`); the icons are made
   from `favicon.svg` by `scripts/gen-icons.mjs` with e2e's Playwright,
@@ -301,5 +303,30 @@ line in the README; no code is needed.
   favicon; the manifest's icon `src`s are relative so dev and build
   both work; whether Vite rewrote the manifest link to `/app/` (as seen in
   Task 3).
-- [ ] **Step 3: Commit.**
+- [x] **Step 3: Commit.**
   `git commit -m "docs: the installable dashboard"`
+
+  > Deviation: the KNOWLEDGE section is dated 2026-10-02, the day the work
+  > landed, not the plan's 2026-10-01.
+
+## Summary
+
+Implemented as planned. `content-types` serves `png` and `webmanifest`;
+`scripts/gen-icons.mjs` renders `favicon.svg` full-bleed to the 192, 512
+and 180 px PNGs; `ui/public/manifest.webmanifest` and four head tags make
+the dashboard installable; `e2e/tests/install.spec.js` checks the links,
+the manifest and the icons through the binary; README and KNOWLEDGE
+describe it.
+
+- Vite rewrote both new `href`s to `/app/`, so no fallback was needed.
+- PNGs survive `io/slurp` byte for byte; `static-response` is unchanged.
+- `lgx check` passes: 43 unit tests (238 assertions), 4 UI tests, 4
+  browser tests. Against the built binary, Chromium's
+  `Page.getInstallabilityErrors` returns none and `Page.getAppManifest`
+  reports no manifest errors.
+- Codex reviewed each task's commit; no findings.
+- Deviations: one, the KNOWLEDGE section's date (Task 5).
+
+What the plan could have specified better: nothing; it held up. The
+redesign landing between writing and executing it was caught by revisiting
+the plan before approval.
