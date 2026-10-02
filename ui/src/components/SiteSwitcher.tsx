@@ -10,7 +10,7 @@ import SiteMark from './SiteMark'
  * each right now (asked once per opening), then "Add website". Switching
  * keeps the period.
  */
-export default function SiteSwitcher({ sites, current }: { sites: Site[]; current: Site }) {
+export default function SiteSwitcher({ sites, current, className = '' }: { sites: Site[]; current: Site; className?: string }) {
   const { search } = useLocation()
   const [online, setOnline] = useState<Record<string, number>>({})
   const ask = () => {
@@ -19,11 +19,11 @@ export default function SiteSwitcher({ sites, current }: { sites: Site[]; curren
     ).then((pairs) => setOnline(Object.fromEntries(pairs)))
   }
   return (
-    <Popover label={`Switch website, ${current.domain}`} onOpen={ask}
-      className="h-9 max-w-[52vw] gap-2 rounded-[10px] border border-hairline bg-surface px-3 text-sm font-semibold text-ink hover:border-faint sm:max-w-none"
+    <Popover label={`Switch website, ${current.domain}`} onOpen={ask} wrapperClassName={className}
+      className="h-9 w-full max-w-full gap-2 rounded-[10px] border border-hairline bg-surface px-3 text-sm font-semibold text-ink hover:border-faint sm:w-auto"
       trigger={<>
         <SiteMark domain={current.domain} />
-        <span className="truncate">{current.domain}</span>
+        <span className="min-w-0 truncate">{current.domain}</span>
         <Chevron />
       </>}>
       {sites.map((s) => (

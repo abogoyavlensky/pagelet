@@ -90,6 +90,10 @@ html {
 
 body {
   min-height: 100vh;
+  /* The sticky top bar's full-width background is wider than the column
+     it sits in; clip (unlike hidden) keeps it from adding a sideways
+     scroll without breaking position: sticky. */
+  overflow-x: clip;
 }
 
 /* Numbers in lists and stats line up. */

@@ -1,20 +1,24 @@
 import { useState } from 'react'
 import type { Period } from '../api'
 import { periodLabel, utcDay } from '../format'
-import { Segmented } from './Card'
 import Popover from './Popover'
 
-type Preset = 'today' | '7d' | '30d'
-const OPTIONS: { value: Preset; label: string }[] = [
-  { value: 'today', label: 'Today' },
-  { value: '7d', label: '7 days' },
-  { value: '30d', label: '30 days' },
-]
+// Each preset with its short label for the narrowest phones.
+const PRESETS = [
+  { period: 'today', long: 'Today', short: 'Today' },
+  { period: '7d', long: '7 days', short: '7d' },
+  { period: '30d', long: '30 days', short: '30d' },
+] as const
+
+const segment = (on: boolean) =>
+  `flex h-8 w-full flex-auto items-center justify-center rounded-lg px-2.5 text-sm font-medium whitespace-nowrap transition-colors sm:px-3 ${
+    on ? 'bg-surface text-ink shadow-[0_1px_2px_rgb(22_24_29/0.08),0_0_0_1px_rgb(22_24_29/0.04)]' : 'text-muted hover:text-ink'}`
 
 /**
- * The period, always visible: three presets side by side, then a custom
- * range of UTC days in a small popover. The page keys this on the period,
- * so Back and Forward reset the date fields too.
+ * The period as one row of four segments: three presets and "Custom", which
+ * opens two date fields (UTC days) and then shows the chosen range in its
+ * place. The page keys this on the period, so Back and Forward reset the
+ * date fields too.
  */
 export default function PeriodControl({ value, onChange, className = '' }: {
   value: Period
@@ -28,14 +32,17 @@ export default function PeriodControl({ value, onChange, className = '' }: {
   const field = 'num w-full rounded-lg border border-hairline bg-paper px-2.5 py-1.5 text-sm text-ink outline-none focus-visible:outline-none focus:border-accent'
 
   return (
-    <div className={`flex items-center gap-1.5 ${className}`}>
-      <Segmented label="Period" value={custom ? undefined : value.period} options={OPTIONS}
-        onChange={(p) => onChange({ period: p })} className="flex-1 sm:flex-none" />
-      <Popover label="Custom range" align="right" role="dialog"
-        className={`h-9 rounded-[10px] px-3 text-sm font-medium ${custom
-          ? 'bg-surface text-ink ring-1 ring-hairline'
-          : 'bg-track text-muted hover:text-ink'}`}
-        trigger={<span className="whitespace-nowrap">{custom ? periodLabel(value) : 'Custom'}</span>}>
+    <div role="group" aria-label="Period" className={`flex items-center gap-0.5 rounded-[10px] bg-track p-0.5 ${className}`}>
+      {PRESETS.map((p) => (
+        <button key={p.period} type="button" aria-pressed={value.period === p.period}
+          onClick={() => onChange({ period: p.period })} className={`${segment(value.period === p.period)} sm:w-auto`}>
+          <span className="min-[360px]:hidden">{p.short}</span>
+          <span className="hidden min-[360px]:inline">{p.long}</span>
+        </button>
+      ))}
+      <Popover label={custom ? `Custom range, ${periodLabel(value)}` : 'Custom range'} align="right" role="dialog"
+        wrapperClassName="flex flex-auto" className={`${segment(custom)} py-0 sm:w-auto`}
+        trigger={<span>{custom ? periodLabel(value) : 'Custom'}</span>}>
         {(close) => (
           <form className="grid w-60 gap-3 p-2"
             onSubmit={(e) => { e.preventDefault(); if (valid) { onChange({ period: 'custom', from, to }); close() } }}>
