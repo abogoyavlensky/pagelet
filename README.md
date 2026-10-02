@@ -77,6 +77,11 @@ is added by its domain alone; until its first event arrives, its page
 shows the tracking code and waits, and the first visit turns that into
 "You're live".
 
+The dashboard installs as an app: "Install" in Chrome or Edge, or "Add to
+Home Screen" on a phone, opens it in its own window. It has no offline
+mode. On iOS the installed app keeps its own sign-in, so you may need to
+sign in once more there.
+
 ## Tracking a site
 
 Add the site in the dashboard (its domain, e.g. `example.com`; `www.` is

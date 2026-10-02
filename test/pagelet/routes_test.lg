@@ -187,4 +187,11 @@
       ;; The dashboard: served when built, a plain 503 before.
       (doseq [path ["/" "/login" "/sites" "/sites/abc"]]
         (is (contains? #{200 503} (:status (call handler :get path))) path))
+      ;; The install files, when the dashboard is built.
+      (let [manifest (call handler :get "/app/manifest.webmanifest")]
+        (when (= 200 (:status manifest))
+          (is (= "application/manifest+json" (get-in manifest [:headers "Content-Type"])))
+          (let [icon (call handler :get "/app/icon-192.png")]
+            (is (= 200 (:status icon)))
+            (is (= "image/png" (get-in icon [:headers "Content-Type"]))))))
       (is (= 404 (:status (call handler :get "/nope")))))))
