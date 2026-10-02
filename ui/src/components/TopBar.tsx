@@ -37,7 +37,9 @@ export default function TopBar({ sites, site, period, onPeriod, live, onSaved }:
       scrolled ? 'before:border-hairline' : 'before:border-transparent'}`}>
       <div className="flex h-16 items-center gap-2 sm:gap-3">
         <Link to="/" aria-label="pagelet, all websites" className="shrink-0 rounded-lg">
-          <Wordmark className="[&>span:last-child]:hidden sm:[&>span:last-child]:inline" />
+          {/* On a phone a site page needs the width for the site button, so
+              the name shows there from sm up; with no site it always shows. */}
+          <Wordmark className={site ? '[&>span:last-child]:hidden sm:[&>span:last-child]:inline' : ''} />
         </Link>
         {sites && site && (
           <>

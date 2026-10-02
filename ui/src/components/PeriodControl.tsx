@@ -29,7 +29,9 @@ export default function PeriodControl({ value, onChange, className = '' }: {
   const [to, setTo] = useState(value.period === 'custom' ? value.to : utcDay())
   const valid = from !== '' && to !== '' && from <= to
   const custom = value.period === 'custom'
-  const field = 'num w-full rounded-lg border border-hairline bg-paper px-2.5 py-1.5 text-sm text-ink outline-none focus-visible:outline-none focus:border-accent'
+  // iOS Safari gives date inputs an intrinsic minimum width and centres the
+  // value; without its native appearance and with min-w-0 they fit the popup.
+  const field = 'num block h-10 w-full min-w-0 max-w-full appearance-none rounded-lg border border-hairline bg-paper px-2.5 text-sm text-ink outline-none focus-visible:outline-none focus:border-accent [&::-webkit-date-and-time-value]:text-left'
 
   return (
     <div role="group" aria-label="Period" className={`flex items-center gap-0.5 rounded-[10px] bg-track p-0.5 ${className}`}>
@@ -44,13 +46,13 @@ export default function PeriodControl({ value, onChange, className = '' }: {
         wrapperClassName="flex flex-auto" className={`${segment(custom)} py-0 sm:w-auto`}
         trigger={<span>{custom ? periodLabel(value) : 'Custom'}</span>}>
         {(close) => (
-          <form className="grid w-60 gap-3 p-2"
+          <form className="grid w-64 max-w-full grid-cols-1 gap-3 p-2"
             onSubmit={(e) => { e.preventDefault(); if (valid) { onChange({ period: 'custom', from, to }); close() } }}>
-            <label className="grid gap-1 text-sm text-muted">
+            <label className="grid min-w-0 gap-1 text-sm text-muted">
               From
               <input type="date" value={from} max={to} onChange={(e) => setFrom(e.target.value)} className={field} />
             </label>
-            <label className="grid gap-1 text-sm text-muted">
+            <label className="grid min-w-0 gap-1 text-sm text-muted">
               To
               <input type="date" value={to} min={from} onChange={(e) => setTo(e.target.value)} className={field} />
             </label>
