@@ -1,8 +1,9 @@
 # Agent notes
 
 Project knowledge lives in `docs/KNOWLEDGE.md` (the stack, verified facts,
-gotchas). Implementation plans live in `docs/plans/`. The README has the
-commands, the configuration and what is collected.
+gotchas). Implementation plans live in `docs/plans/`. The README introduces Pagelet and links to the user guides in `docs/`.
+Commands live in `docs/development.md`, configuration in
+`docs/getting-started.md`, and collected data in `docs/tracking.md`.
 
 ## Working here
 
