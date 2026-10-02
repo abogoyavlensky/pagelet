@@ -13,7 +13,59 @@ sites, one admin password for the dashboard. Built with
 What we have learned about the stack is in
 [docs/KNOWLEDGE.md](docs/KNOWLEDGE.md).
 
-## Run
+## Quickstart
+
+pagelet is one process and one DuckDB file. Run the image or the binary,
+put it behind HTTPS, and add a site.
+
+With Docker, on `linux/amd64` or `linux/arm64`:
+
+```
+docker run -d --name pagelet --restart unless-stopped \
+  -p 8080:8080 \
+  -v pagelet-data:/app/data \
+  -e ADMIN_PASSWORD=change-me \
+  ghcr.io/abogoyavlensky/pagelet:latest
+```
+
+The database is `/app/data/pagelet.duckdb`, in the `pagelet-data` volume.
+The tags are `latest`, `X.Y` and `X.Y.Z`. To update, pull the new image,
+stop and remove the old container, and run the command above again. Stop
+it with `docker stop`, not `docker rm -f`: the server writes its buffered
+events on SIGTERM, and only one process at a time may open the database.
+
+```
+docker pull ghcr.io/abogoyavlensky/pagelet:latest
+docker stop pagelet && docker rm pagelet
+```
+
+With the binary, on Linux x86-64 or arm64 with glibc 2.39 or newer and
+`libstdc++6` (Ubuntu 24.04, Debian 13, Fedora 40 or later; on an older
+system, use the image):
+
+```
+curl -fsSL https://github.com/abogoyavlensky/pagelet/releases/latest/download/pagelet-linux-amd64.tar.gz | tar -xz
+ADMIN_PASSWORD=change-me ./pagelet
+```
+
+On arm64, take `pagelet-linux-arm64.tar.gz`; `checksums.txt` beside them
+has the SHA-256 sums. The database is `pagelet.duckdb` in the current
+directory; `DB_PATH` puts it elsewhere, in a directory that must exist.
+
+Then open http://localhost:8080, sign in with `ADMIN_PASSWORD`, add a site
+by its domain, and put the snippet it shows on that site (see
+[Tracking a site](#tracking-a-site)).
+
+In production, serve it over HTTPS from a reverse proxy: the tracker is
+loaded by the sites you track, and an HTTPS page will not load it over
+plain HTTP. Set `TRUST_PROXY=true` only if the proxy replaces any
+`X-Forwarded-For` the client sent (Caddy does by default); otherwise
+visitors could choose their own address. Limit request bodies at the
+proxy; nothing pagelet accepts comes near 64 KB. In a container with a
+memory limit, set `DUCKDB_MEMORY_LIMIT`. Everything else is under
+[Configuration](#configuration).
+
+## Run from source
 
 Needs lgx 0.4.2 or newer, the Go toolchain, Node, and **a C compiler**
 (`.mise.toml` pins lgx 0.4.2, Go 1.27 and Node 24; gcc comes from the
@@ -153,7 +205,7 @@ Environment variables, each with a development default:
 | Variable | Default | |
 |---|---|---|
 | `PORT` | `8080` | http port |
-| `DB_PATH` | `pagelet.duckdb` | the DuckDB file; one process at a time may open it |
+| `DB_PATH` | `pagelet.duckdb` (`/app/data/pagelet.duckdb` in the image) | the DuckDB file; one process at a time may open it; its directory must exist |
 | `ADMIN_PASSWORD` | `admin` (warns) | the dashboard password; only its SHA-256 is kept |
 | `TRUST_PROXY` | `false` | `true` behind a reverse proxy: the client IP is the first `X-Forwarded-For` entry |
 | `FLUSH_INTERVAL_MS` | `5000` | how often buffered events are written to DuckDB (sooner at 500 queued) |
@@ -209,12 +261,35 @@ lgx check               # lgx test, lgx ui-test, then lgx e2e
 ## Docker
 
 The image (`debian:trixie-slim` plus `libstdc++6`) wraps a `bin/pagelet`
-built outside it, as quickmeet does. `lgx docker` builds the binary, then
+built outside it, as quickmeet does. Its `DB_PATH` is
+`/app/data/pagelet.duckdb`; mount a volume on `/app/data` to keep the
+database. The published image is this Dockerfile around each
+architecture's CI binary (see Releases). `lgx docker` builds the binary, then
 the image, starts it and checks `/api/health`. The binary must be built on
 a glibc no newer than trixie's 2.41 (CI builds on ubuntu-24.04, 2.39, pinned for this reason); see
 docs/KNOWLEDGE.md. CI (`.github/workflows/test.yml`) runs the unit tests,
 the dashboard's unit tests, the browser tests and this smoke test on every
 push.
+
+## Releases
+
+Pushing a tag `vX.Y.Z` runs `.github/workflows/release.yml`: the tests
+(`test.yml`), then on `ubuntu-24.04` and `ubuntu-24.04-arm` a native build
+with the unit tests and the image smoke test. Each architecture's image is
+pushed to `ghcr.io/abogoyavlensky/pagelet` as `X.Y.Z-amd64` or
+`X.Y.Z-arm64`, then joined into one multi-arch image tagged `X.Y.Z`, `X.Y`
+and `latest`. Last comes a GitHub release with
+`pagelet-linux-amd64.tar.gz`, `pagelet-linux-arm64.tar.gz` and
+`checksums.txt`.
+
+```
+git tag v0.2.0
+git push origin v0.2.0
+```
+
+Running the workflow by hand (Actions, or `gh workflow run release.yml`)
+is a dry run: the tests and both builds, nothing pushed, no release.
+Releases and the master deploy are independent of each other.
 
 ## Limitations
 
@@ -265,3 +340,7 @@ Logs and state, from a machine with the SSH key:
 uc --context personal --connect root@<SERVER_IP> logs pagelet
 uc --context personal --connect root@<SERVER_IP> ls
 ```
+
+## License
+
+MIT, see [LICENSE](LICENSE).
