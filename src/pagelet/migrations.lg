@@ -66,7 +66,21 @@
    (rt/sql-migration
     {:id "006-add-sites-public"
      :up ["alter table sites add column is_public boolean default false"]
-     :down ["alter table sites drop column is_public"]})])
+     :down ["alter table sites drop column is_public"]})
+
+   ;; One row per engagement beacon (ingest.lg): the milliseconds a page
+   ;; view was visible since its previous beacon, a delta, so the beacons of
+   ;; one page view add up. Kept apart from events, so no count over events
+   ;; ever sees them. Written only by ingest.lg.
+   (rt/sql-migration
+    {:id "007-create-engagements"
+     :up ["create table engagements (
+             site_id varchar not null,
+             ts timestamp not null,
+             visitor varchar not null,
+             path varchar not null,
+             engaged_ms integer not null)"]
+     :down ["drop table engagements"]})])
 
 (defn- config [conn]
   {:datastore (rt/sql-database conn)

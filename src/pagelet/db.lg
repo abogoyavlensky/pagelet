@@ -85,10 +85,12 @@
                       name domain (boolean public?) id]))
 
 (defn delete-site!
-  "Delete a site and every event it has, in one transaction."
+  "Delete a site with every event and engagement it has, in one
+   transaction."
   [conn id]
   (duckdb/with-transaction [tx conn]
     (execute! tx ["delete from events where site_id = ?" id])
+    (execute! tx ["delete from engagements where site_id = ?" id])
     (execute! tx ["delete from sites where id = ?" id])))
 
 ;; ---- sessions -----------------------------------------------------------

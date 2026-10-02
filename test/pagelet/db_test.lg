@@ -18,10 +18,10 @@
         conn (duckdb/open path)]
     (try
       (migrations/migrate! conn)
-      (is (= #{"sites" "events" "sessions" "salts" "ragtime_migrations"} (tables conn)))
+      (is (= #{"sites" "events" "sessions" "salts" "engagements" "ragtime_migrations"} (tables conn)))
       (migrations/migrate! conn)
-      (is (= 6 (:n (db/execute-one! conn ["select count(*) as n from ragtime_migrations"]))))
-      (migrations/rollback! conn 6)
+      (is (= 7 (:n (db/execute-one! conn ["select count(*) as n from ragtime_migrations"]))))
+      (migrations/rollback! conn 7)
       (is (= #{"ragtime_migrations"} (tables conn)))
       (is (= 0 (:n (db/execute-one! conn ["select count(*) as n from ragtime_migrations"]))))
       (finally
@@ -61,6 +61,22 @@
   (doseq [bad ["lots" "128MB'; drop table sites; --" "128 parsecs"]]
     (is (thrown? Exception (with-conn {:memory-limit bad} (fn [_] nil))) bad)))
 
+;; Deleting a site takes its events and engagements, and nobody else's.
+
+(deftest deleting-a-site-takes-its-engagements
+  (let [conn (duckdb/open "")]
+    (migrations/migrate! conn)
+    (db/create-site! conn "s1" "one.com" "one.com")
+    (db/create-site! conn "s2" "two.com" "two.com")
+    (doseq [site ["s1" "s2"]]
+      (db/execute! conn ["insert into engagements values (?, now() at time zone 'UTC', 'v', '/', 1000)" site])
+      (db/execute! conn ["insert into events (site_id, ts, name, visitor, path)
+                          values (?, now() at time zone 'UTC', 'pageview', 'v', '/')" site]))
+    (db/delete-site! conn "s1")
+    (is (= ["s2"] (map :site_id (db/query conn ["select site_id from engagements"]))))
+    (is (= ["s2"] (map :site_id (db/query conn ["select site_id from events"]))))
+    (duckdb/close! conn)))
+
 ;; The public flag: a real boolean, off for new sites and for sites that
 ;; existed before migration 006.
 
@@ -70,7 +86,8 @@
         conn (duckdb/open path)]
     (try
       (migrations/migrate! conn)
-      (migrations/rollback! conn)
+      ;; Back to before 006 (and the migrations after it).
+      (migrations/rollback! conn 2)
       (db/execute! conn ["insert into sites values ('old', 'old.com', 'old.com', now() at time zone 'UTC')"])
       (migrations/migrate! conn)
       (is (false? (:public (first (db/sites conn)))))
