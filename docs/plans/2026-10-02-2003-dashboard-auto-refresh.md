@@ -1,5 +1,7 @@
 # Dashboard Auto-Refresh Implementation Plan
 
+**Status: completed 2026-10-02.** See the summary at the end.
+
 > **For agentic workers:** Use executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** A dashboard left open stays current: the site page and the overview refetch their numbers every 60 s while visible and at once when the tab or app comes back, and a Refresh button asks on demand.
@@ -244,13 +246,29 @@ The Refresh button is not tied to this: it is offered for any period.
 **Files:**
 - Modify: `README.md`, `docs/KNOWLEDGE.md`, this plan
 
-- [ ] **Step 1: README and KNOWLEDGE** as under Design → Docs.
+- [x] **Step 1: README and KNOWLEDGE** as under Design → Docs.
 
-- [ ] **Step 2: Full check**
+- [x] **Step 2: Full check**
   Run: `mise exec -- lgx check`. Expected: server tests, UI unit tests and every browser spec pass.
 
-- [ ] **Step 3: Commit**
+> Deviation: `lgx check` ran on the default port: 45 server tests (285 assertions), 5 UI tests and 6 browser specs passed.
+
+- [x] **Step 3: Commit**
   `git commit -m "docs: the dashboard refreshes itself"`
 
-- [ ] **Step 4: Close the plan**
+- [x] **Step 4: Close the plan**
   Mark the plan completed with a short summary and any deviations, as the earlier plans do; commit (`Plan: dashboard auto-refresh is done`). Push the branch and open a PR against `master`.
+
+## Summary
+
+Shipped as planned, with no server change. `useApi` has a quiet `refresh` beside `reload`, with a generation counter so only the newest answer lands. `useRefresh` (`ui/src/refresh.ts`) asks again every 60 s while the tab is visible and at once on return. `isCurrent` keeps a range that ended before today off the timer. The site page refreshes its report quietly, including a public visitor's "No visits recorded yet" view. A Refresh button in the top bar reloads loudly and nudges the Right now card. The overview's cards, their online badge and the site list follow the same minute and the same button. A failed quiet refresh shows the existing "Could not load this period" alert and heals on the next success.
+
+Codex reviews: Tasks 1-6 clean, no fixups. The plan review before execution caught the empty public site's missing poll and the public-site session-expiry claim; both were folded in before any code.
+
+Deviations, in one place:
+- The 5 s hand checks were replaced by the browser spec, which drives the real 60 s timer with Playwright's clock and fails when the interval is doubled (Tasks 2 and 4).
+- The top bar already overflowed by up to 37 px between 768 and 804 px; with Refresh it would have been 81 px. Settings now shows its label from `lg` and the bar's gaps widen at `lg`, with no overflow measured from 360 to 1280 px (Task 3).
+- The spec's step order puts the failed-refresh step before the overview, and its Refresh locator is exact (Task 5).
+- The layout check used a Playwright script against `bin/pagelet`; the preview browser did not respond (Task 3).
+
+What the plan could have specified better: the top bar's width at `md`. It already overflowed between 768 and 804 px, so a measured check across the breakpoints belonged in the plan rather than a 360 px check alone.
