@@ -257,7 +257,7 @@
                         (if error
                           (bad-request error)
                           (save-site! db domain (:id site)
-                                      #(db/update-site! db (:id site) name domain)
+                                      #(db/update-site! db (:id site) name domain (:public site))
                                       (fn [updated]
                                         (ingest/refresh-sites! buffer)
                                         (json-response 200 updated)))))))))}

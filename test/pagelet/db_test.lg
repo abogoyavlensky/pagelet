@@ -20,8 +20,8 @@
       (migrations/migrate! conn)
       (is (= #{"sites" "events" "sessions" "salts" "ragtime_migrations"} (tables conn)))
       (migrations/migrate! conn)
-      (is (= 5 (:n (db/execute-one! conn ["select count(*) as n from ragtime_migrations"]))))
-      (migrations/rollback! conn 5)
+      (is (= 6 (:n (db/execute-one! conn ["select count(*) as n from ragtime_migrations"]))))
+      (migrations/rollback! conn 6)
       (is (= #{"ragtime_migrations"} (tables conn)))
       (is (= 0 (:n (db/execute-one! conn ["select count(*) as n from ragtime_migrations"]))))
       (finally
@@ -60,3 +60,25 @@
 (deftest a-bad-memory-limit-fails-init
   (doseq [bad ["lots" "128MB'; drop table sites; --" "128 parsecs"]]
     (is (thrown? Exception (with-conn {:memory-limit bad} (fn [_] nil))) bad)))
+
+;; The public flag: a real boolean, off for new sites and for sites that
+;; existed before migration 006.
+
+(deftest sites-are-private-until-made-public
+  (mkdir ".tmp")
+  (let [path (str ".tmp/db-test-" (rand-int 100000000) ".duckdb")
+        conn (duckdb/open path)]
+    (try
+      (migrations/migrate! conn)
+      (migrations/rollback! conn)
+      (db/execute! conn ["insert into sites values ('old', 'old.com', 'old.com', now() at time zone 'UTC')"])
+      (migrations/migrate! conn)
+      (is (false? (:public (first (db/sites conn)))))
+      (let [site (db/create-site! conn "new" "new.com" "new.com")]
+        (is (false? (:public site)))
+        (is (true? (:public (db/update-site! conn "new" "new.com" "new.com" true))))
+        (is (true? (:public (db/site-by-id conn "new"))))
+        (is (false? (:public (db/update-site! conn "new" "new.com" "new.com" false)))))
+      (finally
+        (duckdb/close! conn)
+        (os/sh "rm" "-f" path (str path ".wal"))))))
