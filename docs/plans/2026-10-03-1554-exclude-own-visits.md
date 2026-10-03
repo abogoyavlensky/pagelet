@@ -81,14 +81,14 @@ No server code changes: the server never sees an ignored browser's requests.
 **Files:**
 - Modify: `resources/public/p.js`
 
-- [ ] **Step 1: Add the read**
+- [x] **Step 1: Add the read**
   Add the `ignored` function from the design above the `off` line and `|| ignored()` to the `off` expression. Update the comment above `off` so it names all three cases (file: pages, localhost without `data-dev`, the owner's flag). Keep the file's style: ES5, short names, one-line comments.
 
-- [ ] **Step 2: Check the size**
+- [x] **Step 2: Check the size**
   Run: `wc -c resources/public/p.js`
   Expected: below 4096. If not, shorten the comment, not the code.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
   `git commit -m "tracker: pagelet_ignore in localStorage excludes a browser"`
 
 ### Task 2: The browser test
@@ -96,18 +96,18 @@ No server code changes: the server never sees an ignored browser's requests.
 **Files:**
 - Modify: `e2e/tests/tracker.spec.js`
 
-- [ ] **Step 1: Write the specs**
+- [x] **Step 1: Write the specs**
   Add `test('a browser with pagelet_ignore set is not counted', ...)` following the design's four steps. Reuse the file's `spa` fixture and its `page.route` of `http://${domain}/**`; delete the site at the end. A comment at the top says why the order of loads makes the negative assertion sound (the design's "Why this is a sound negative test"). Then add `test('blocked storage does not stop the tracker', ...)` as in the design's Testing section, modelled on the existing "a failing tracker never breaks navigation" spec (`addInitScript`, a `pageerror` listener, `errors` asserted empty).
 
-- [ ] **Step 2: Run the browser tests**
+- [x] **Step 2: Run the browser tests**
   Run: `mise exec -- lgx e2e`
   Expected: every spec PASSES, the new one included.
 
-- [ ] **Step 3: See it fail without the tracker change**
+- [x] **Step 3: See it fail without the tracker change**
   Task 1 is already committed, so put master's tracker back in the working tree with `git checkout master -- resources/public/p.js`, run `mise exec -- lgx e2e` (it rebuilds the binary, which embeds `p.js`), and confirm the new spec fails (`events` holds the signup or `/about` has two views). Then `git checkout HEAD -- resources/public/p.js` and confirm `git status` is clean.
   Expected: the new spec FAILS with master's tracker and PASSES with the branch's.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
   `git commit -m "e2e: a browser with pagelet_ignore set is not counted"`
 
 ### Task 3: Docs and the PR

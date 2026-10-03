@@ -102,3 +102,67 @@ test('a failing tracker never breaks navigation', async ({ page, request, baseUR
 
   await deleteSite(request, site.id);
 });
+
+// The owner's flag. The order of loads makes the negative check sound: had
+// the ignored load sent anything, it left the page before the reload that
+// sends /pricing, and the server flushes in arrival order, so the signup or
+// a second /about view would be in the stats by the time /pricing is.
+test('a browser with pagelet_ignore set is not counted', async ({ page, request, baseURL }) => {
+  await apiLogin(request);
+  const domain = uniqueDomain('ignored');
+  const site = await createSite(request, 'Ignored', domain);
+  await page.route(`http://${domain}/**`, (route) =>
+    route.fulfill({ contentType: 'text/html', body: spa.replaceAll('http://127.0.0.1:8099', baseURL) }));
+
+  // Counted: one page view proves the pipeline before anything is ignored.
+  await page.goto(`http://${domain}/`);
+  await expect.poll(async () => (await stats(request, site.id)).totals.pageviews).toBe(1);
+
+  // Ignored: from the next load on, nothing is sent.
+  await page.evaluate(() => localStorage.setItem('pagelet_ignore', 'true'));
+  await page.reload();
+  await page.click('#about');
+  await expect(page).toHaveURL(`http://${domain}/about`);
+  await page.click('#signup');
+
+  // Counted again once the flag is gone.
+  await page.evaluate(() => localStorage.removeItem('pagelet_ignore'));
+  await page.reload();
+  await page.click('#pricing');
+  await expect(page).toHaveURL(`http://${domain}/pricing`);
+
+  await expect.poll(async () => (await stats(request, site.id)).totals.pageviews).toBe(3);
+  const s = await stats(request, site.id);
+  expect(s.pages.map(({ name, pageviews }) => ({ name, pageviews }))).toEqual([
+    { name: '/', pageviews: 1 },
+    { name: '/about', pageviews: 1 },
+    { name: '/pricing', pageviews: 1 },
+  ]);
+  expect(s.events).toEqual([]);
+  expect(s.totals.visitors).toBe(1);
+
+  await deleteSite(request, site.id);
+});
+
+test('blocked storage does not stop the tracker', async ({ page, request, baseURL }) => {
+  await apiLogin(request);
+  const domain = uniqueDomain('nostorage');
+  const site = await createSite(request, 'No storage', domain);
+  await page.route(`http://${domain}/**`, (route) =>
+    route.fulfill({ contentType: 'text/html', body: spa.replaceAll('http://127.0.0.1:8099', baseURL) }));
+  // Reading localStorage throws, as with storage blocked.
+  await page.addInitScript(() => {
+    Object.defineProperty(window, 'localStorage', { get() { throw new Error('blocked'); } });
+  });
+  const errors = [];
+  page.on('pageerror', (e) => errors.push(e));
+
+  await page.goto(`http://${domain}/`);
+  await page.click('#about');
+  await expect(page).toHaveURL(`http://${domain}/about`);
+
+  await expect.poll(async () => (await stats(request, site.id)).totals.pageviews).toBe(2);
+  expect(errors).toEqual([]);
+
+  await deleteSite(request, site.id);
+});
