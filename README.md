@@ -65,7 +65,8 @@ See [what is collected](docs/tracking.md#what-is-collected).
 
 - [Getting started](docs/getting-started.md): installation, configuration,
   HTTPS, and updates
-- [Tracking](docs/tracking.md): script options, custom events, and collected data
+- [Tracking](docs/tracking.md): script options, custom events, excluding
+  your own visits, and collected data
 - [Dashboard](docs/dashboard.md): metrics, public sharing, and installing as an app
 - [Development](docs/development.md): source setup, UI workflow, and tests
 - [Operations](docs/operations.md): image builds, releases, and hosted deployment

@@ -115,7 +115,7 @@ No server code changes: the server never sees an ignored browser's requests.
 **Files:**
 - Modify: `docs/tracking.md`, `README.md`, `docs/KNOWLEDGE.md`, this plan
 
-- [ ] **Step 1: tracking.md**
+- [x] **Step 1: tracking.md**
   Add `## Excluding your own visits` as in the design's Docs section, with two fenced `js` blocks:
   ```js
   localStorage.setItem("pagelet_ignore", "true");
@@ -124,10 +124,12 @@ No server code changes: the server never sees an ignored browser's requests.
   localStorage.removeItem("pagelet_ignore");
   ```
 
-- [ ] **Step 2: README and KNOWLEDGE**
+- [x] **Step 2: README and KNOWLEDGE**
   In the README's Documentation list, the tracking line becomes "script options, custom events, excluding your own visits, and collected data". In `docs/KNOWLEDGE.md`, update the tracker size line with the new byte count.
 
-- [ ] **Step 3: The whole check**
+> Deviation: the old size line in `docs/KNOWLEDGE.md` belongs to the dated Engagement section, so it stays as history; a new dated section records the new size instead.
+
+- [x] **Step 3: The whole check**
   Run: `mise exec -- lgx check`
   Expected: server tests, UI unit tests and browser tests all PASS.
 

@@ -430,3 +430,13 @@ pagelet deploys to the `personal` cluster (linkboard's) with `uc` 0.20.0;
   is started by the owner from the Actions tab. Pushing a tag works.
 - `test.yml`'s concurrency group is `test-<calling workflow>-<ref>`: a
   dry run of `release` on master and a master `deploy` no longer share one.
+
+## Excluding your own visits (2026-10-03)
+
+- The tracker reads `localStorage.pagelet_ignore` once, into `off`, so a
+  page load is either counted whole or not at all. It went from 3695 to
+  3925 bytes; README says "under 4 KB", which leaves about 170.
+- In Chromium, an init script with
+  `Object.defineProperty(window, "localStorage", { get() { throw ... } })`
+  makes every `localStorage` access throw: the e2e stand-in for blocked
+  storage.
