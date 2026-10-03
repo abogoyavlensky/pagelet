@@ -45,6 +45,32 @@ loads:
 </script>
 ```
 
+## Excluding your own visits
+
+To stop counting your own visits, open the tracked site in the browser
+you want to exclude, run this in the browser's developer console, and
+reload the page:
+
+```js
+localStorage.setItem("pagelet_ignore", "true");
+```
+
+From the next page load on, that browser sends nothing for that site: no
+page views, no custom events, and no time on page. To be counted again,
+run this and reload:
+
+```js
+localStorage.removeItem("pagelet_ignore");
+```
+
+The flag is stored by the site, in one browser:
+
+- Set it on the tracked site, not on the Pagelet dashboard.
+- Repeat it for each site and each browser you use.
+  `example.com` and `www.example.com` count as different sites here, so
+  set it on the one you open.
+- Clearing the site's data in the browser removes the flag.
+
 ## What is collected
 
 Per event: the site, the time (UTC), the event name, the

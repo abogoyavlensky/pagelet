@@ -6,8 +6,12 @@
   // The endpoint sits beside this script: /p.js -> /api/event.
   var url = s.src.replace(/\/p\.js([?#].*)?$/, "/api/event");
   var hash = has("hash"), first = true, last;
-  // file: pages have no host; localhost only with data-dev.
-  var off = l.protocol == "file:" || !has("dev") && /^(localhost|127\.0\.0\.1)$/.test(l.hostname);
+  // The owner's flag: localStorage.pagelet_ignore = "true" on the site.
+  function ignored() {
+    try { return localStorage.getItem("pagelet_ignore") == "true"; } catch (_) { return false; }
+  }
+  // file: pages have no host; localhost only with data-dev; never when ignored.
+  var off = l.protocol == "file:" || !has("dev") && /^(localhost|127\.0\.0\.1)$/.test(l.hostname) || ignored();
   // The time zone; the server names the country from it.
   var zone;
   try { zone = Intl.DateTimeFormat().resolvedOptions().timeZone; } catch (_) {}
