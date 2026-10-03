@@ -1,5 +1,7 @@
 # Exclude Your Own Visits Implementation Plan
 
+**Status: completed 2026-10-03.** See the summary at the end.
+
 > **For agentic workers:** Use executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** A site owner can stop one browser from being counted on one tracked site by setting a localStorage flag on that site, the way Umami and Plausible do it.
@@ -133,5 +135,16 @@ No server code changes: the server never sees an ignored browser's requests.
   Run: `mise exec -- lgx check`
   Expected: server tests, UI unit tests and browser tests all PASS.
 
-- [ ] **Step 4: Mark the plan executed, commit, open the PR**
+- [x] **Step 4: Mark the plan executed, commit, open the PR**
   Add `**Status: completed <date>.**` and a short summary at the end of this plan, as the earlier plans have. `git commit -m "docs: excluding your own visits"`, push, and open a PR titled `Exclude your own visits with a localStorage flag`.
+
+## Summary
+
+Shipped as planned. The tracker reads `localStorage.pagelet_ignore` once at load, inside a function that never throws. When it is `"true"`, `off` is set, and nothing goes out from that load: no page views, no custom events, and no time on page. The tracker grew from 3695 to 3925 bytes, still under 4 KB. Two new browser specs cover the flag and blocked storage. The flag spec fails against master's tracker, which sent 5 page views where 3 were expected, and passes with the change. `docs/tracking.md` has a new "Excluding your own visits" section, and the README's Tracking link mentions it. `lgx check` passes: 51 server tests, the UI tests, and 12 browser tests.
+
+Codex reviews: the plan review caught a broken stash step and asked for a blocked-storage test; both were folded in before execution. Tasks 1-3 were clean.
+
+Deviations, in one place:
+- The old size line in `docs/KNOWLEDGE.md` sits in the dated Engagement section, so it stays as history. A new dated section records the new size (Task 3).
+
+What the plan could have specified better: nothing.
