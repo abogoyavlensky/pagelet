@@ -1,11 +1,12 @@
 import { useState, type ReactNode } from 'react'
 import type { EventRow, PageRow, Row } from '../api'
-import { count, duration, share } from '../format'
+import { count, duration, pageUrl, share } from '../format'
 import Card from './Card'
 
 const SHOWN = 7
 
-type Item = { key: string; name: string; bar: number; cells: ReactNode[] }
+/** A row; with `href`, its name links there in a new tab. */
+type Item = { key: string; name: string; href?: string; bar: number; cells: ReactNode[] }
 
 /**
  * A top list on a card: column labels in the header, then rows over soft
@@ -38,7 +39,12 @@ function List({ title, testId, columns, items, className = '' }: {
               <li key={i.key} className="relative flex h-9 items-center gap-1 text-sm">
                 <span aria-hidden className="absolute inset-y-0 left-0 rounded-lg bg-visitors-soft"
                   style={{ width: `${Math.max(2, (i.bar / max) * 100)}%` }} />
-                <span className="relative min-w-0 flex-1 truncate px-2.5 text-ink" title={i.name}>{i.name}</span>
+                {i.href ? (
+                  <a href={i.href} target="_blank" rel="noopener" title={i.name}
+                    className="relative min-w-0 flex-1 truncate px-2.5 text-ink hover:underline underline-offset-4">{i.name}</a>
+                ) : (
+                  <span className="relative min-w-0 flex-1 truncate px-2.5 text-ink" title={i.name}>{i.name}</span>
+                )}
                 {i.cells}
               </li>
             ))}
@@ -82,13 +88,17 @@ export default function Breakdown({ title, testId, rows, label = (n) => n, share
   )
 }
 
-/** Top pages: visitors, views, and the visible time per measured visitor ("–" when none). */
-export function Pages({ rows, className }: { rows: PageRow[]; className?: string }) {
+/**
+ * Top pages: visitors, views, and the visible time per measured visitor
+ * ("–" when none). With the site's domain, each name links to the page.
+ */
+export function Pages({ rows, domain, className }: { rows: PageRow[]; domain?: string; className?: string }) {
   return (
     <List title="Pages" testId="pages" className={className} columns={['Visitors', 'Views', 'Time']}
       items={rows.map((r) => ({
         key: r.name,
         name: r.name,
+        href: domain ? pageUrl(domain, r.name) : undefined,
         bar: r.visitors,
         cells: [cell('v', count(r.visitors)), cell('p', count(r.pageviews), false),
           cell('t', r.time === null ? '–' : duration(r.time), false)],
