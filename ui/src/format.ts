@@ -103,3 +103,12 @@ export function duration(seconds: number): string {
   if (s < 3600) return `${Math.floor(s / 60)}m ${s % 60}s`
   return `${Math.floor(s / 3600)}h ${Math.floor((s % 3600) / 60)}m`
 }
+
+/**
+ * Where a page lives on its site: "https://example.com/pricing". The site
+ * stores only a hostname, so https is assumed; the path is appended as the
+ * server sends it, with the hash route already in it in hash mode.
+ */
+export function pageUrl(domain: string, path: string): string {
+  return `https://${domain}${path}`
+}
