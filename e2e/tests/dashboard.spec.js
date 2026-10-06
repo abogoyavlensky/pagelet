@@ -68,10 +68,20 @@ test('sign in, add a site, see its first visit and numbers, delete it', async ({
   await expect(pages.locator('li')).toHaveCount(3);
   await expect(pages.locator('li', { hasText: '/pricing' })).toContainText('1m 30s');
 
+  // Each page name links to the page on the site, in a new tab.
+  const pricing = pages.locator('li', { hasText: '/pricing' }).getByRole('link');
+  await expect(pricing).toHaveAttribute('href', `https://${domain}/pricing`);
+  await expect(pricing).toHaveAttribute('target', '_blank');
+  await expect(pricing).toHaveAttribute('rel', 'noopener');
+
   // The Right now card asks on mount and then every 15 s; its first answer
   // can come from just before the flush, so allow one more poll.
   await expect(page.getByTestId('online-now')).toContainText(/1\s*person online/, { timeout: 20_000 });
   await expect(page.getByTestId('online-now')).toContainText('/docs');
+  const docs = page.getByTestId('online-now').getByRole('link', { name: '/docs' });
+  await expect(docs).toHaveAttribute('href', `https://${domain}/docs`);
+  await expect(docs).toHaveAttribute('target', '_blank');
+  await expect(docs).toHaveAttribute('rel', 'noopener');
 
   // The chart's own toggle switches what it plots.
   const chart = page.getByRole('group', { name: 'Chart shows' });
