@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { api, type Realtime } from '../api'
-import { count } from '../format'
+import { count, pageUrl } from '../format'
 import Card from './Card'
 
 const EVERY_MS = 15_000
@@ -10,7 +10,13 @@ const EVERY_MS = 15_000
  * while the tab is visible. A changed `nudge` (the Refresh button) asks at
  * once and starts the 15 s over; the last answer stays on screen meanwhile.
  */
-export default function LiveCard({ siteId, nudge = 0, className = '' }: { siteId: string; nudge?: number; className?: string }) {
+export default function LiveCard({ siteId, domain, nudge = 0, className = '' }: {
+  siteId: string
+  /** The site's hostname: with it, each page links to itself in a new tab. */
+  domain?: string
+  nudge?: number
+  className?: string
+}) {
   const [now, setNow] = useState<Realtime>()
 
   useEffect(() => {
@@ -43,7 +49,12 @@ export default function LiveCard({ siteId, nudge = 0, className = '' }: { siteId
         <ul className="mt-4 grid grid-cols-1 gap-1">
           {now.pages.map((p) => (
             <li key={p.name} className="flex items-center justify-between gap-4 rounded-lg bg-paper px-2.5 py-1.5 text-sm">
-              <span className="truncate text-ink" title={p.name}>{p.name}</span>
+              {domain ? (
+                <a href={pageUrl(domain, p.name)} target="_blank" rel="noopener" title={p.name}
+                  className="truncate text-ink hover:underline underline-offset-4">{p.name}</a>
+              ) : (
+                <span className="truncate text-ink" title={p.name}>{p.name}</span>
+              )}
               <span className="num font-medium text-ink">{count(p.visitors)}</span>
             </li>
           ))}

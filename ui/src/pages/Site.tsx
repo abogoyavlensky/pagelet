@@ -122,7 +122,8 @@ export default function Site() {
         </p>
       ) : <Waiting site={site} load={load} onOpen={setFirst} />)}
       {shown && !waiting && (
-        <Body report={shown} metric={metric} onMetric={setMetric} dim={report.loading || !!report.error} siteId={id} nudge={nudge} />
+        <Body report={shown} metric={metric} onMetric={setMetric} dim={report.loading || !!report.error}
+          siteId={id} domain={site?.domain} nudge={nudge} />
       )}
     </div>
   )
@@ -138,12 +139,14 @@ type DeviceView = (typeof DEVICE_VIEWS)[number]['value']
 
 const capitalised = (s: string) => s.charAt(0).toUpperCase() + s.slice(1)
 
-function Body({ report, metric, onMetric, dim, siteId, nudge }: {
+function Body({ report, metric, onMetric, dim, siteId, domain, nudge }: {
   report: Report
   metric: Metric
   onMetric: (m: Metric) => void
   dim: boolean
   siteId: string
+  /** Unset while the site list still loads; pages are plain text until then. */
+  domain?: string
   nudge: number
 }) {
   const { stats, period } = report
@@ -155,10 +158,10 @@ function Body({ report, metric, onMetric, dim, siteId, nudge }: {
       <StatCards stats={stats} period={period} />
       <div className={`${gap} lg:grid-cols-3`}>
         <Timeseries data={stats.timeseries} metric={metric} onMetric={onMetric} className="lg:col-span-2" />
-        <LiveCard siteId={siteId} nudge={nudge} />
+        <LiveCard siteId={siteId} domain={domain} nudge={nudge} />
       </div>
       <div className={`${gap} md:grid-cols-2`}>
-        <Pages rows={stats.pages} />
+        <Pages rows={stats.pages} domain={domain} />
         <Breakdown title="Sources" testId="sources" rows={stats.referrers} />
       </div>
       <div className={`${gap} md:grid-cols-2 md:items-start`}>
