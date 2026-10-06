@@ -2,6 +2,7 @@
 // small hook for loading data. Types mirror the JSON that
 // src/pagelet/stats.lg and routes.lg produce; change both together.
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { zone } from './format'
 
 export type Site = {
   id: string
@@ -20,7 +21,8 @@ export type EventRow = { name: string; count: number; visitors: number }
 export type PageRow = Row & { time: number | null }
 
 export type Stats = {
-  period: { from: string; to: string; bucket: Bucket }
+  /** In the zone the dashboard asked in, named by tz; to is exclusive. */
+  period: { from: string; to: string; bucket: Bucket; tz: string }
   /** Whether the site has any event at all, in any period. */
   has_events: boolean
   /**
@@ -76,12 +78,14 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
   return data as T
 }
 
+// The browser's zone goes along, so days start at the viewer's midnight.
 function periodQuery(p: Period): string {
   const q = new URLSearchParams({ period: p.period })
   if (p.period === 'custom') {
     q.set('from', p.from)
     q.set('to', p.to)
   }
+  q.set('tz', zone())
   return q.toString()
 }
 

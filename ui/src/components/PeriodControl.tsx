@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import type { Period } from '../api'
-import { periodLabel, utcDay } from '../format'
+import { localDay, periodLabel, zone } from '../format'
 import Popover from './Popover'
 
 // Each preset with its short label for the narrowest phones.
@@ -16,7 +16,7 @@ const segment = (on: boolean) =>
 
 /**
  * The period as one row of four segments: three presets and "Custom", which
- * opens two date fields (UTC days) and then shows the chosen range in its
+ * opens two date fields (days in the browser's zone) and then shows the chosen range in its
  * place. The page keys this on the period, so Back and Forward reset the
  * date fields too.
  */
@@ -25,8 +25,8 @@ export default function PeriodControl({ value, onChange, className = '' }: {
   onChange: (p: Period) => void
   className?: string
 }) {
-  const [from, setFrom] = useState(value.period === 'custom' ? value.from : utcDay(-6))
-  const [to, setTo] = useState(value.period === 'custom' ? value.to : utcDay())
+  const [from, setFrom] = useState(value.period === 'custom' ? value.from : localDay(-6))
+  const [to, setTo] = useState(value.period === 'custom' ? value.to : localDay())
   const valid = from !== '' && to !== '' && from <= to
   const custom = value.period === 'custom'
   // iOS Safari gives date inputs an intrinsic minimum width and centres the
@@ -60,7 +60,7 @@ export default function PeriodControl({ value, onChange, className = '' }: {
               className="rounded-lg bg-ink py-2 text-sm font-medium text-paper transition-opacity disabled:opacity-40">
               Show this range
             </button>
-            <p className="text-xs text-muted">Days are UTC.</p>
+            <p className="text-xs text-muted">Days are in {zone()} time.</p>
           </form>
         )}
       </Popover>
