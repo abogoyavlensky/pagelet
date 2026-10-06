@@ -138,6 +138,51 @@
     (is (= {:t "2026-09-09T12:00" :visitors 1 :pageviews 8} (nth one-day 12)))
     (duckdb/close! conn)))
 
+(defn- seeded-late
+  "The seeded events plus vz's view of /late at 22:30 UTC on the 9th:
+   00:30 on the 10th in Amsterdam."
+  []
+  (let [conn (seeded)]
+    (insert! conn "2026-09-09 22:30:00" 1 {:visitor "vz" :path "/late" :browser "Chrome"})
+    conn))
+
+(deftest local-days
+  (let [conn (seeded-late)
+        series (fn [params zone] (stats/timeseries conn "s1" (stats/period conn params now-day zone)))
+        day (fn [rows t] (first (filter #(= t (:t %)) rows)))]
+    ;; In UTC vz is on the 9th; in Amsterdam on the 10th.
+    (let [utc (series {:period "7d"} "UTC")
+          ams (series {:period "7d"} "Europe/Amsterdam")]
+      (is (= 7 (count utc) (count ams)))
+      (is (= {:t "2026-09-09" :visitors 2 :pageviews 9} (day utc "2026-09-09")))
+      (is (= {:t "2026-09-10" :visitors 2 :pageviews 14} (day utc "2026-09-10")))
+      (is (= {:t "2026-09-09" :visitors 1 :pageviews 8} (day ams "2026-09-09")))
+      (is (= {:t "2026-09-10" :visitors 3 :pageviews 15} (day ams "2026-09-10"))))
+    ;; The 10th alone in Amsterdam, by the hour.
+    (let [p (stats/period conn {:period "custom" :from "2026-09-10" :to "2026-09-10"} now-day "Europe/Amsterdam")
+          s (stats/stats conn "s1" p later)
+          hours (:timeseries s)]
+      (is (= 3 (get-in s [:totals :visitors])))
+      (is (some #(= "/late" (:name %)) (:pages s)))
+      (is (= 24 (count hours)))
+      (is (= {:t "2026-09-10T00:00" :visitors 1 :pageviews 1} (nth hours 0)))
+      (is (= {:t "2026-09-10T11:00" :visitors 2 :pageviews 14} (nth hours 11))))
+    (duckdb/close! conn)))
+
+(deftest a-fall-back-day
+  ;; 00:30 and 01:30 UTC on 2026-10-25 are both 02:30 in Amsterdam, once
+  ;; in summer time and once in winter time: one bar, 24 of them.
+  (let [conn (duckdb/open "")]
+    (migrations/migrate! conn)
+    (insert! conn "2026-10-25 00:30:00" 1 {:visitor "vf" :path "/a"})
+    (insert! conn "2026-10-25 01:30:00" 1 {:visitor "vf" :path "/b"})
+    (let [hours (stats/timeseries conn "s1" (stats/period conn {:period "custom" :from "2026-10-25" :to "2026-10-25"}
+                                                          now-day "Europe/Amsterdam"))]
+      (is (= 24 (count hours)))
+      (is (= {:t "2026-10-25T02:00" :visitors 1 :pageviews 2} (nth hours 2)))
+      (is (= 2 (reduce + (map :pageviews hours)))))
+    (duckdb/close! conn)))
+
 (deftest an-empty-period
   (let [conn (seeded)
         p (stats/period conn {:period "custom" :from "2026-01-01" :to "2026-01-03"} now-day "UTC")

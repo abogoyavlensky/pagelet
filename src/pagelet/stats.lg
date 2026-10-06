@@ -181,15 +181,17 @@
    "day" "%Y-%m-%d"})
 
 (defn timeseries
-  "Every bucket of the period, oldest first, zero-filled."
-  [conn site-id {:keys [from to-exclusive bucket] :as p}]
+  "Every bucket of the period, oldest first, zero-filled. Buckets are hours
+   or days in the period's zone, labelled in local time; on a fall-back day
+   the repeated hour's events share one bucket."
+  [conn site-id {:keys [zone local-from local-to-exclusive bucket] :as p}]
   (db/query conn
             (into [(str "with buckets as (
                            select t from generate_series(?::timestamp,
                                                          ?::timestamp - interval 1 " bucket ",
                                                          interval 1 " bucket ") as g(t)),
                          counts as (
-                           select date_trunc('" bucket "', ts) as t,
+                           select date_trunc('" bucket "', timezone(?, timezone('UTC', ts))) as t,
                                   count(distinct visitor) as visitors,
                                   count(*) filter (where name = 'pageview') as pageviews
                            from events where " in-period "
@@ -199,7 +201,7 @@
                                 coalesce(c.pageviews, 0) as pageviews
                          from buckets b left join counts c on c.t = b.t
                          order by b.t")
-                   from to-exclusive]
+                   local-from local-to-exclusive zone]
                   (in-period-params site-id p))))
 
 (defn- ranked
