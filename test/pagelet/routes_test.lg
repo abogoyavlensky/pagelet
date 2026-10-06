@@ -160,7 +160,19 @@
           ;; One visitor, one pageview: a bounce. Nothing came before today.
           (is (true? (get-in stats [:json :has_events])))
           (is (= 100 (get-in stats [:json :totals :bounce_rate])))
-          (is (= {:visitors 0 :pageviews 0 :visit_duration nil} (get-in stats [:json :previous]))))
+          (is (= {:visitors 0 :pageviews 0 :visit_duration nil} (get-in stats [:json :previous])))
+          ;; No tz is UTC.
+          (is (= "UTC" (get-in stats [:json :period :tz]))))
+        ;; The viewer's zone, as the dashboard sends it (URL-encoded). The
+        ;; event is "now", so today holds it in any zone.
+        (let [stats (call handler :get (str "/api/sites/" (:id site) "/stats?period=today&tz=Europe%2FAmsterdam") nil me)]
+          (is (= 200 (:status stats)))
+          (is (= "Europe/Amsterdam" (get-in stats [:json :period :tz])))
+          (is (= 1 (get-in stats [:json :totals :pageviews])))
+          (is (= 24 (count (get-in stats [:json :timeseries])))))
+        (let [bad (call handler :get (str "/api/sites/" (:id site) "/stats?period=today&tz=Nowhere%2FZone") nil me)]
+          (is (= 400 (:status bad)))
+          (is (= "tz must be an IANA time zone name" (get-in bad [:json :error]))))
         (is (= 200 (:status (call handler :get (str "/api/sites/" (:id site) "/stats") nil me))))
         (is (= 200 (:status (call handler :get (str "/api/sites/" (:id site)
                                                     "/stats?period=custom&from=2026-09-01&to=2026-09-03")
