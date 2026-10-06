@@ -2,7 +2,11 @@
 // --test, which runs TypeScript directly on Node 24).
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { change, duration, isCurrent, pageUrl, periodLabel, share, versus } from '../src/format.ts'
+import { change, duration, isCurrent, localDay, longDate, pageUrl, periodLabel, share, versus } from '../src/format.ts'
+
+// Dates below are made in Amsterdam, whatever the machine's zone, so the DST
+// days are the same everywhere. Node re-reads TZ when it changes.
+process.env.TZ = 'Europe/Amsterdam'
 
 const today = { period: 'today' } as const
 const week = { period: '7d' } as const
@@ -66,4 +70,19 @@ test('pageUrl', () => {
   assert.equal(pageUrl('example.com', '/pricing'), 'https://example.com/pricing')
   assert.equal(pageUrl('example.com', '/'), 'https://example.com/')
   assert.equal(pageUrl('example.com', '/#/about'), 'https://example.com/#/about')
+})
+
+test('localDay', () => {
+  assert.equal(localDay(0, new Date(2026, 8, 30, 23, 30)), '2026-09-30')
+  assert.equal(localDay(-6, new Date(2026, 8, 30)), '2026-09-24')
+  // The day after the 23-hour spring-forward day: 24 hours back is the 28th.
+  assert.equal(localDay(-1, new Date(2026, 2, 30, 0, 30)), '2026-03-29')
+  // Into the 25-hour fall-back day.
+  assert.equal(localDay(1, new Date(2026, 9, 24, 23, 30)), '2026-10-25')
+  assert.match(localDay(), /^\d{4}-\d{2}-\d{2}$/)
+})
+
+test('longDate', () => {
+  assert.equal(longDate('2026-09-30T13:00'), 'Sep 30, 13:00')
+  assert.equal(longDate('2026-09-23'), 'Wed, Sep 23')
 })

@@ -160,16 +160,24 @@
         i (str/index-of uri "?")]
     (if i [(subs uri 0 i) (subs uri (inc i))] [uri ""])))
 
+(defn- percent-decode
+  "`s` with + as a space and each %XX as its character. let-go 1.13.0 has
+   no URL decoder. Byte by byte, so only ASCII escapes come out right,
+   which is all the values read here hold: period names, dates and time
+   zone names (Europe%2FAmsterdam)."
+  [s]
+  (-> (str/replace s "+" " ")
+      (str/replace #"%[0-9A-Fa-f]{2}" (fn [m] (str (char (read-string (str "0x" (subs m 1)))))))))
+
 (defn- query-params
-  "The query string as a keyword map. Values are taken as written: the only
-   ones read here are period names and dates, which need no decoding."
+  "The query string as a keyword map, values percent-decoded."
   [req]
   (->> (str/split (second (split-uri (or (:request-uri req) (:uri req)))) #"&")
        (keep (fn [part]
                (when-not (str/blank? part)
                  (let [i (str/index-of part "=")]
                    (if i
-                     [(keyword (subs part 0 i)) (subs part (inc i))]
+                     [(keyword (subs part 0 i)) (percent-decode (subs part (inc i)))]
                      [(keyword part) ""])))))
        (into {})))
 
@@ -319,7 +327,10 @@
       :method :get
       :response (readable
                  (fn [req site]
-                   (let [p (stats/period db (query-params req) (stats/today db))]
+                   ;; ?tz= is the viewer's time zone; absent, UTC.
+                   (let [params (query-params req)
+                         {:keys [zone error]} (stats/zone db (:tz params))
+                         p (if error {:error error} (stats/period db params (stats/today db zone) zone))]
                      (if (:error p)
                        (bad-request (:error p))
                        (json-response 200 (stats/stats db (:id site) p (stats/now db)))))))}

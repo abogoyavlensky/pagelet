@@ -71,7 +71,7 @@ export default function Timeseries({ data, metric, onMetric, className = '' }: {
           </ResponsiveContainer>
         </div>
         <table className="sr-only">
-          <thead><tr><th>Time (UTC)</th><th>Visitors</th><th>Pageviews</th></tr></thead>
+          <thead><tr><th>Time</th><th>Visitors</th><th>Pageviews</th></tr></thead>
           <tbody>
             {data.map((p) => (
               <tr key={p.t}><td>{longDate(p.t)}</td><td>{p.visitors}</td><td>{p.pageviews}</td></tr>

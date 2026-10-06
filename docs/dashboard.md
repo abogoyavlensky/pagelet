@@ -10,7 +10,7 @@ it (by mouse, touch or keyboard), and a new site goes last. The site
 switcher follows the same order. A
 site's page has one top bar (the logo back to the overview, the site as a
 button that switches sites, the period as tabs: today, 7 or 30 days, or a
-custom range of UTC days kept in the URL, then Refresh, Settings and
+custom range of days kept in the URL, then Refresh, Settings and
 sign-out) over a grid of cards:
 
 - visitors, pageviews, views per visit, bounce rate and visit duration,
@@ -27,6 +27,12 @@ Each page in the top pages and in the "Right now" card links to that page
 on the site, in a new tab. The link is `https://` plus the site's domain as
 entered plus the path, so a site served over plain http, or only on `www`,
 may need its address corrected by hand.
+
+Reports are in the time zone of the browser that opens the dashboard:
+today is your today, days start at your midnight, and the hourly chart
+shows your hours. Two people in different zones see the same visits cut
+into different days, and a shared link to a custom range means those days
+in the reader's zone.
 
 A visit is a visitor's day (see [What is collected](tracking.md#what-is-collected)), and a bounce is a
 visitor whose only event in the period is one page view. Visit duration
@@ -59,7 +65,10 @@ sign in once more there.
 
 ## Limitations
 
-- Reports are in UTC; there is no local-timezone view.
+- Visitor ids change at UTC midnight whatever your zone, so a visitor
+  active across UTC midnight counts twice in the day that spans it.
+- In the few zones whose clocks change at midnight (Cuba, Chile, Paraguay),
+  one hour of the change day lands on the neighbouring day.
 - No data retention or rollups: events are kept until their site is deleted.
 - Time on page is time visible, not time active: a visible tab left open
   counts, up to 30 minutes per stretch. A visit across UTC midnight counts

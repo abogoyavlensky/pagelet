@@ -1,6 +1,7 @@
 // Number, date, country and badge helpers for the dashboard. Every date
-// the server sends is UTC and naive ("2026-09-23", "2026-09-30T13:00"); they
-// are shown as written, never shifted into the browser's zone. Countries
+// the server sends is naive and already in the viewer's time zone, the one
+// the dashboard asks in ("2026-09-23", "2026-09-30T13:00"), so it is shown
+// as written. Countries
 // arrive as ISO codes ("NL") and are named here, so the UI carries no
 // country table. No runtime imports: test/format.test.ts loads this file
 // straight into Node.
@@ -24,20 +25,36 @@ export function tick(t: string): string {
   return hour ?? `${MONTHS[m - 1]} ${d}`
 }
 
-/** "Wed, Sep 23" for a day, "Sep 30, 13:00 UTC" for an hour. */
+/** "Wed, Sep 23" for a day, "Sep 30, 13:00" for an hour. */
 export function longDate(t: string): string {
   const { y, m, d, hour } = parts(t)
-  if (hour) return `${MONTHS[m - 1]} ${d}, ${hour} UTC`
+  if (hour) return `${MONTHS[m - 1]} ${d}, ${hour}`
   return `${DAYS[new Date(Date.UTC(y, m - 1, d)).getUTCDay()]}, ${MONTHS[m - 1]} ${d}`
 }
 
-/** Today in UTC, YYYY-MM-DD, shifted by `days`. */
-export function utcDay(days = 0): string {
-  return new Date(Date.now() + days * 86_400_000).toISOString().slice(0, 10)
+/** The browser's IANA time zone, "Europe/Amsterdam"; UTC when it has none. */
+export function zone(): string {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'
+  } catch {
+    return 'UTC'
+  }
 }
 
-/** Whether the period reaches today (UTC), so its numbers can still change. */
-export function isCurrent(p: Period, today = utcDay()): boolean {
+/**
+ * The day of `base` in the browser's zone, YYYY-MM-DD, shifted by `days`
+ * calendar days. Shifted by the calendar, not by 24-hour steps, which skip
+ * or repeat a day around a clock change.
+ */
+export function localDay(days = 0, base = new Date()): string {
+  const d = new Date(base)
+  d.setDate(d.getDate() + days)
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+}
+
+/** Whether the period reaches today (the viewer's), so its numbers can still change. */
+export function isCurrent(p: Period, today = localDay()): boolean {
   return p.period !== 'custom' || p.to >= today
 }
 

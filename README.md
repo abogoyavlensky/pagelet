@@ -54,7 +54,8 @@ stored; visitor IDs change every UTC day and differ between sites.
 The dashboard uses a sign-in cookie on the analytics host only.
 See [what is collected](docs/tracking.md#what-is-collected).
 
-- Reports use UTC. A visitor returning on another day counts again.
+- Reports are in your browser's time zone. A visitor returning on another day
+  counts again.
 - Time on page measures how long a page is visible, up to 30 minutes per
   stretch; it does not measure active interaction.
 - Countries come from browser time zones, so they are approximate.

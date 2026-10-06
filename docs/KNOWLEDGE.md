@@ -452,3 +452,27 @@ pagelet deploys to the `personal` cluster (linkboard's) with `uc` 0.20.0;
 - Only the name is the anchor, kept `relative` so it sits above the row's
   absolutely positioned bar. Sources and the other breakdowns pass no
   `href`, so they stay plain text by construction.
+
+## Time zones in DuckDB (2026-10-05)
+
+- The duckdb package's build has ICU: `pg_timezone_names()` lists 638
+  zones, legacy browser names included (`Asia/Calcutta`, `Europe/Kiev`,
+  `US/Pacific`) and `UTC`, `Etc/UTC`, `GMT`. An unknown zone in a
+  conversion throws "Unknown TimeZone".
+- `?::timestamp at time zone ?` cannot take a bound zone: DuckDB types the
+  second parameter as a timestamp and fails on the string, `?::varchar`
+  too. The function form binds: `timezone(?, ts)`.
+- naive local to naive UTC is `timezone('UTC', timezone(zone, local))`;
+  naive UTC to naive local is `timezone(zone, timezone('UTC', utc))`; the
+  zone's day is `timezone(zone, now())::date`. None of them follows
+  `set TimeZone`; `now()::timestamp` does, so `stats.lg` never uses it.
+- A local time that does not exist (02:30 on 2026-03-29 in Amsterdam)
+  converts as if it did (01:30 UTC). On the fall-back day 00:30 and 01:30
+  UTC both read 02:30 local, so an hourly chart merges them.
+- let-go 1.13.0 has no URL decoder (`http` has none, `string` only
+  `escape`); `routes.lg` has a small `percent-decode`. `(read-string
+  "0x2F")` is 47; `str/replace` takes a regex and a function.
+- Signed in, the overview's cards ask `/stats?period=7d`; a spec that
+  navigates from there to a site page must match its own period, or it
+  catches a card's request that the navigation aborts ("No resource with
+  given identifier found" on `response.json()`).
