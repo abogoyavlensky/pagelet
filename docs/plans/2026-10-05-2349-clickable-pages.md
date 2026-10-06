@@ -1,5 +1,7 @@
 # Clickable Pages Implementation Plan
 
+**Status: completed 2026-10-06.** See the summary at the end.
+
 > **For agentic workers:** Use executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Every page name in the Pages card and the "Right now" card is a link to that page on the tracked site, opened in a new tab.
@@ -77,24 +79,24 @@ Clicking through from the dashboard creates a real visit on the owner's own site
 - Modify: `ui/src/format.ts`
 - Test: `ui/test/format.test.ts`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
   Add `pageUrl` to the import and a `test('pageUrl', ...)` block asserting:
   `pageUrl('example.com', '/pricing')` is `'https://example.com/pricing'`;
   `pageUrl('example.com', '/')` is `'https://example.com/'`;
   `pageUrl('example.com', '/#/about')` is `'https://example.com/#/about'`.
 
-- [ ] **Step 2: Run it to make sure it fails**
+- [x] **Step 2: Run it to make sure it fails**
   Run: `mise exec -- lgx ui-test`
   Expected: FAIL, `pageUrl` is not exported.
 
-- [ ] **Step 3: Implement the helper**
+- [x] **Step 3: Implement the helper**
   In `ui/src/format.ts`, next to the other label helpers, add `pageUrl` with the docstring and signature from the design. No runtime imports: the file is loaded straight into Node by the test.
 
-- [ ] **Step 4: Run the tests**
+- [x] **Step 4: Run the tests**
   Run: `mise exec -- lgx ui-test`
   Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
   `git commit -m "Dashboard: pageUrl builds a page's https URL from the site's domain"`
 
 ### Task 2: Links in the Pages card and the Right now card
@@ -104,23 +106,25 @@ Clicking through from the dashboard creates a real visit on the owner's own site
 - Modify: `ui/src/components/LiveCard.tsx`
 - Modify: `ui/src/pages/Site.tsx`
 
-- [ ] **Step 1: Breakdown**
+- [x] **Step 1: Breakdown**
   Add `href?: string` to `Item`. In `List`'s row, render the name as `<a href={i.href} target="_blank" rel="noopener" title={i.name} className="relative min-w-0 flex-1 truncate px-2.5 text-ink hover:underline underline-offset-4">` when `i.href` is set, else the existing span. Keep the classes identical apart from the hover underline so the row does not shift. Give `Pages` a `domain?: string` prop and set `href: domain ? pageUrl(domain, r.name) : undefined` on each item, importing `pageUrl` from `../format`. `Breakdown` and `Events` do not set `href`.
 
-- [ ] **Step 2: LiveCard**
+- [x] **Step 2: LiveCard**
   Add `domain?: string` to the props. In the page row, render the name as the same kind of anchor when `domain` is set (`href={pageUrl(domain, p.name)}`), else the existing span, keeping `truncate text-ink` and the `title`.
 
-- [ ] **Step 3: Site page**
+- [x] **Step 3: Site page**
   Add `domain?: string` to `Body`'s props, pass `domain={site?.domain}` where `Body` is rendered, and inside `Body` pass `domain={domain}` to `<Pages>` and `<LiveCard>`.
 
-- [ ] **Step 4: Type-check and lint**
+- [x] **Step 4: Type-check and lint**
   Run: `cd ui && mise exec -- npx tsc -b && mise exec -- npm run lint`
   Expected: no errors from TypeScript or oxlint.
 
-- [ ] **Step 5: Look at it**
+- [x] **Step 5: Look at it**
   Run `mise exec -- lgx run` and `mise exec -- lgx ui-dev`, open a site with visits, and check: the page name underlines on hover, opens `https://<domain><path>` in a new tab on click, the bar and numbers look as before, and the Sources card has no links. Check the Right now card the same way.
 
-- [ ] **Step 6: Commit**
+> Deviation: Step 5 was done headlessly with Playwright against `lgx run` (no browser preview in this environment); the hrefs, target and rel were read from the DOM and the hover state screenshotted.
+
+- [x] **Step 6: Commit**
   `git commit -m "Dashboard: page names link to the page on the site"`
 
 ### Task 3: Browser test
@@ -128,16 +132,16 @@ Clicking through from the dashboard creates a real visit on the owner's own site
 **Files:**
 - Modify: `e2e/tests/dashboard.spec.js`
 
-- [ ] **Step 1: Assert the links**
+- [x] **Step 1: Assert the links**
   In the dashboard spec, after the existing `/pricing` time assertion, add:
   `await expect(pages.locator('li', { hasText: '/pricing' }).getByRole('link')).toHaveAttribute('href', \`https://${domain}/pricing\`)`, and on the same locator `toHaveAttribute('target', '_blank')` and `toHaveAttribute('rel', 'noopener')`.
   After the existing Right now `/docs` assertion, add the same three checks on `page.getByTestId('online-now').getByRole('link', { name: '/docs' })`, with `href` `https://${domain}/docs`.
 
-- [ ] **Step 2: Run the browser tests**
+- [x] **Step 2: Run the browser tests**
   Run: `mise exec -- lgx e2e`
   Expected: all specs PASS, including the new assertions.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
   `git commit -m "e2e: the Pages and Right now cards link to the page"`
 
 ### Task 4: Docs
@@ -147,23 +151,34 @@ Clicking through from the dashboard creates a real visit on the owner's own site
 - Modify: `docs/tracking.md`
 - Modify: `docs/KNOWLEDGE.md`
 
-- [ ] **Step 1: dashboard.md**
+- [x] **Step 1: dashboard.md**
   In the card list, say that each page in the top pages and in the Right now card links to that page on the site, opened in a new tab, and that the link assumes https and the site's domain as entered (so a site served over plain http, or only on `www`, may need the address corrected by hand).
 
-- [ ] **Step 2: tracking.md**
+- [x] **Step 2: tracking.md**
   Under "Excluding your own visits", add a sentence that opening a page from the dashboard's Pages or Right now card is a visit like any other, so set the flag in the browser you open them from.
 
-- [ ] **Step 3: KNOWLEDGE.md**
+- [x] **Step 3: KNOWLEDGE.md**
   Add a dated entry "Clickable pages (2026-10-05)": `pageUrl` in `format.ts` assumes https and appends the stored path verbatim (hash-mode fragments included); `domain` is optional down the tree because `Body` can render before the site list resolves, and a row without it stays plain text.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
   `git commit -m "Docs: page links in the dashboard, and that they count as visits"`
 
 ### Task 5: Check and PR
 
-- [ ] **Step 1: Full check**
+- [x] **Step 1: Full check**
   Run: `mise exec -- lgx check`
   Expected: unit tests, ui tests and e2e all PASS.
 
-- [ ] **Step 2: Open the PR**
+- [x] **Step 2: Open the PR**
   Push `clickable-pages` and open a PR against `master` titled "Pages link to the page on the site", with a short body: what links, what is assumed (https, no www), what stays plain text, and the own-visits note.
+
+---
+
+## Summary
+
+Shipped on the `clickable-pages` branch in four commits after the plan: the `pageUrl` helper with Node tests; anchors in `Breakdown.tsx` (optional `href` per item, set only by `Pages`) and `LiveCard.tsx`, with `domain` passed from `Site.tsx`; e2e assertions on `href`, `target` and `rel` in both cards; docs in `dashboard.md`, `tracking.md` and `KNOWLEDGE.md`. `lgx check` passes: 51 server tests, 7 UI tests, 12 browser specs. Codex reviewed every commit and found nothing to fix.
+
+Deviations:
+- Task 2 step 5 ("look at it") was done headlessly with Playwright against `lgx run`, since this environment has no browser preview. The hrefs, target and rel were read from the DOM, Sources was confirmed to have no links, and the hover state was screenshotted.
+
+What the plan could have specified better: nothing; it held up as written.
