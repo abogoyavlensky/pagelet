@@ -1,14 +1,24 @@
 (ns pagelet.stats
-  (:require [pagelet.db :as db]))
+  (:require [pagelet.db :as db]
+            [string :as str]))
 
 ;; The dashboard's reports: one fn per panel, each over a site and a period,
 ;; and `stats` putting them together in the shape the UI reads (the stats
 ;; response in the plan's Design; ui/src/api.ts mirrors it).
 ;;
-;; All date work is DuckDB's. A period is two naive-UTC timestamp strings,
-;; :from inclusive and :to-exclusive, and a bucket, "hour" or "day"; the
+;; All date work is DuckDB's. A period is built in a time zone, the
+;; viewer's: its days start at that zone's midnight. It carries the naive-UTC
+;; instants that filter events (:from inclusive, :to-exclusive), the naive
+;; local boundaries the chart's buckets are cut from (:local-from,
+;; :local-to-exclusive), the :zone, and a bucket, "hour" or "day"; the
 ;; bucket is interpolated into the SQL, which is safe because it only ever
 ;; comes from `period`, never from the request.
+;;
+;; DuckDB's `at time zone ?` cannot take a bound zone (it types the
+;; parameter as a timestamp), so conversions use the function form:
+;; timezone('UTC', timezone(zone, local)) is local -> UTC, and
+;; timezone(zone, timezone('UTC', utc)) is UTC -> local. Neither depends on
+;; the session's TimeZone setting.
 ;;
 ;; visitors is count(distinct visitor); pageviews counts rows named
 ;; 'pageview'. The visitor hash is salted per day, so a visitor is one
@@ -31,10 +41,21 @@
   [conn expr day]
   (:d (db/execute-one! conn [(str "select (" expr ")::varchar as d") day])))
 
+(defn zone
+  "{:zone name} when `z` is a time zone DuckDB knows, or {:zone \"UTC\"}
+   when it is nil or blank (no zone asked for), else {:error message}."
+  [conn z]
+  (cond
+    (or (nil? z) (and (string? z) (= "" (str/trim z)))) {:zone "UTC"}
+    (and (string? z)
+         (:ok (db/execute-one! conn ["select exists(select 1 from pg_timezone_names() where name = ?) as ok" z])))
+    {:zone z}
+    :else {:error "tz must be an IANA time zone name"}))
+
 (defn today
-  "The current UTC day, YYYY-MM-DD."
-  [conn]
-  (:d (db/execute-one! conn ["select (now() at time zone 'UTC')::date::varchar as d"])))
+  "The current day in time zone `zone`, YYYY-MM-DD."
+  [conn zone]
+  (:d (db/execute-one! conn ["select timezone(?, now())::date::varchar as d" zone])))
 
 (defn now
   "The current UTC time, YYYY-MM-DDTHH:MM:SS."
@@ -48,29 +69,43 @@
     (let [d (:d (db/execute-one! conn ["select try_cast(? as date)::varchar as d" s]))]
       (when (= s d) d))))
 
+(defn- to-utc
+  "The naive local time `local` (YYYY-MM-DDTHH:MM:SS) in `zone`, as naive
+   UTC in the same format."
+  [conn zone local]
+  (:t (db/execute-one! conn ["select strftime(timezone('UTC', timezone(?, ?::timestamp)), '%Y-%m-%dT%H:%M:%S') as t"
+                             zone local])))
+
 (defn- span
-  "The period from day `from` through day `to`, both inclusive."
-  [conn from to bucket]
-  {:from (str from "T00:00:00")
-   :to-exclusive (str (sql-day conn "?::date + 1" to) "T00:00:00")
-   :bucket bucket})
+  "The period from day `from` through day `to`, both inclusive, as days in
+   `zone`."
+  [conn zone from to bucket]
+  (let [local-from (str from "T00:00:00")
+        local-to (str (sql-day conn "?::date + 1" to) "T00:00:00")]
+    {:from (to-utc conn zone local-from)
+     :to-exclusive (to-utc conn zone local-to)
+     :bucket bucket
+     :zone zone
+     :local-from local-from
+     :local-to-exclusive local-to}))
 
 (defn period
-  "The period `params` asks for, relative to `now-day` (YYYY-MM-DD):
-   {:from :to-exclusive :bucket} or {:error message}. params: :period is
+  "The period `params` asks for, in time zone `zone`, relative to `now-day`
+   (YYYY-MM-DD, that zone's today): {:from :to-exclusive :bucket :zone
+   :local-from :local-to-exclusive} or {:error message}. params: :period is
    today, 7d (the default), 30d or custom; custom takes :from and :to,
    inclusive days."
-  [conn params now-day]
+  [conn params now-day zone]
   (case (or (:period params) "7d")
-    "today" (span conn now-day now-day "hour")
-    "7d" (span conn (sql-day conn "?::date - 6" now-day) now-day "day")
-    "30d" (span conn (sql-day conn "?::date - 29" now-day) now-day "day")
+    "today" (span conn zone now-day now-day "hour")
+    "7d" (span conn zone (sql-day conn "?::date - 6" now-day) now-day "day")
+    "30d" (span conn zone (sql-day conn "?::date - 29" now-day) now-day "day")
     "custom" (let [from (valid-day conn (:from params))
                    to (valid-day conn (:to params))]
                (cond
                  (not (and from to)) {:error "from and to must be dates, YYYY-MM-DD"}
                  (pos? (compare from to)) {:error "from must not be after to"}
-                 :else (span conn from to (if (= from to) "hour" "day"))))
+                 :else (span conn zone from to (if (= from to) "hour" "day"))))
     {:error "period must be today, 7d, 30d or custom"}))
 
 (def ^:private in-period
@@ -115,15 +150,18 @@
    :visit_duration (visit-duration conn site-id p)))
 
 (defn- previous-period
-  "The span of the same length just before `p`, ending as far into its
-   length as `now` is into `p`'s: {:from :to-exclusive}."
-  [conn {:keys [from to-exclusive]} now]
-  (let [row (db/execute-one! conn ["select strftime(?::timestamp - (?::timestamp - ?::timestamp),
-                                                    '%Y-%m-%dT%H:%M:%S') as f,
-                                           strftime(least(?::timestamp, ?::timestamp) - (?::timestamp - ?::timestamp),
-                                                    '%Y-%m-%dT%H:%M:%S') as t"
-                                   from to-exclusive from
-                                   to-exclusive now to-exclusive from])]
+  "The span of as many local days just before `p`, ending as far into them
+   as `now` (naive UTC) is into `p`'s: {:from :to-exclusive}, naive UTC.
+   The arithmetic is on naive local times, which ignore clock changes, so
+   on a 23-hour day the day before still starts at its midnight."
+  [conn {:keys [zone local-from local-to-exclusive]} now]
+  (let [row (db/execute-one! conn ["with p as (
+                                      select ?::timestamp as lf, ?::timestamp as lt,
+                                             timezone(?, timezone('UTC', ?::timestamp)) as ln, ? as z)
+                                    select strftime(timezone('UTC', timezone(z, lf - (lt - lf))), '%Y-%m-%dT%H:%M:%S') as f,
+                                           strftime(timezone('UTC', timezone(z, least(lt, ln) - (lt - lf))), '%Y-%m-%dT%H:%M:%S') as t
+                                    from p"
+                                   local-from local-to-exclusive zone now zone])]
     {:from (:f row) :to-exclusive (:t row)}))
 
 (defn previous
@@ -228,9 +266,10 @@
 
 (defn stats
   "Every panel for `site-id` over period `p`, compared with the span before
-   as of `now` (YYYY-MM-DDTHH:MM:SS, UTC)."
+   as of `now` (YYYY-MM-DDTHH:MM:SS, UTC). The answer's :period is in the
+   period's zone, named as :tz."
   [conn site-id p now]
-  {:period {:from (:from p) :to (:to-exclusive p) :bucket (:bucket p)}
+  {:period {:from (:local-from p) :to (:local-to-exclusive p) :bucket (:bucket p) :tz (:zone p)}
    :has_events (has-events? conn site-id)
    :totals (totals conn site-id p)
    :previous (previous conn site-id p now)

@@ -319,7 +319,7 @@
       :method :get
       :response (readable
                  (fn [req site]
-                   (let [p (stats/period db (query-params req) (stats/today db))]
+                   (let [p (stats/period db (query-params req) (stats/today db "UTC") "UTC")]
                      (if (:error p)
                        (bad-request (:error p))
                        (json-response 200 (stats/stats db (:id site) p (stats/now db)))))))}
