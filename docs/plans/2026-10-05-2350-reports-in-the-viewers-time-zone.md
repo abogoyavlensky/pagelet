@@ -1,5 +1,7 @@
 # Reports in the Viewer's Time Zone Implementation Plan
 
+**Status: completed 2026-10-06.** See the summary at the end.
+
 > **For agentic workers:** Use executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** The dashboard shows every report in the time zone of the browser viewing it: "today" is the viewer's today, days start at the viewer's midnight, and the hourly chart is labelled in the viewer's hours.
@@ -138,21 +140,21 @@ No migration, no change to `ingest.lg`, `db.lg` or the tracker.
 - Modify: `src/pagelet/stats.lg`
 - Test: `test/pagelet/stats_test.lg`
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
   In `stats_test.lg`, give every `stats/period` and `stats/today` call a zone argument (`"UTC"` for the existing ones) and add the Amsterdam and Kolkata cases from the design's Testing section to `periods`, plus a `zones` test for `stats/zone` (accepted names, `nil`/blank → `"UTC"`, `"Nowhere/Zone"` → `:error`), and the DST comparison case from the design's Testing section (`the-previous-span-across-dst`). Expect the new keys (`:zone`, `:local-from`, `:local-to-exclusive`) in every period map, and `:tz` in `(:period s)` of `seven-days`.
 
-- [ ] **Step 2: Run the tests to see them fail**
+- [x] **Step 2: Run the tests to see them fail**
   Run: `mise exec -- lgx test`
   Expected: the stats tests FAIL (arity, then missing keys).
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
   In `stats.lg`: `zone` (the `pg_timezone_names()` lookup; `nil` or blank is `"UTC"`); `today` takes the zone (`timezone(?, now())::date`); `span` builds the local boundaries, converts them with `timezone('UTC', timezone(?, ?::timestamp))`, and returns the six-key map from the design; `period` takes `[conn params now-day zone]` and threads the zone through; `stats` answers `:period {:from local-from :to local-to-exclusive :bucket :tz}`. Update the namespace comment: a period is now built in a zone, with its UTC instants for the filter and its local boundaries for the chart. `previous-period` takes the zone and local boundaries and does its arithmetic in local time as the design shows. Keep `now`, `in-period` and `realtime` as they are.
 
-- [ ] **Step 4: Run the tests**
+- [x] **Step 4: Run the tests**
   Run: `mise exec -- lgx test`
   Expected: PASS. (`routes_test.lg` fails until Task 3 if `period`'s arity changed under it; if so, pass `"UTC"` from the route for now and finish the route in Task 3.)
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
   `git commit -m "stats: periods cut at midnight in a given zone"`
 
 ### Task 2: The chart in local buckets
@@ -161,22 +163,24 @@ No migration, no change to `ingest.lg`, `db.lg` or the tracker.
 - Modify: `src/pagelet/stats.lg`
 - Test: `test/pagelet/stats_test.lg`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
   Add `seeded-late` (one `/late` pageview by `vz` at `2026-09-09 22:30:00`), the fall-back case in `hours` and the `local-days` test from the design: the UTC 7-day series puts `vz` on the 9th; the Amsterdam series on the 10th; the Amsterdam custom day `2026-09-10` has 3 visitors and `/late`; its hourly series has `vz` at index 0 (`"2026-09-10T00:00"`) and a's views at index 11 (`"2026-09-10T11:00"`); the series still has 7 and 24 rows.
 
-- [ ] **Step 2: Run it to see it fail**
+- [x] **Step 2: Run it to see it fail**
   Run: `mise exec -- lgx test`
   Expected: `local-days` FAILS (buckets are UTC).
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
   `timeseries` generates buckets from `:local-from`/`:local-to-exclusive` and groups by `date_trunc('<bucket>', timezone(?, timezone('UTC', ts)))`, with the zone bound before the `in-period` parameters. Update its docstring.
 
-- [ ] **Step 4: Run the tests**
+- [x] **Step 4: Run the tests**
   Run: `mise exec -- lgx test`
   Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
   `git commit -m "stats: chart buckets in the period's zone"`
+
+> Deviation: the fall-back case is its own test, `a-fall-back-day`, not part of `hours`, which runs over the shared UTC seed data.
 
 ### Task 3: The route reads tz
 
@@ -184,21 +188,21 @@ No migration, no change to `ingest.lg`, `db.lg` or the tracker.
 - Modify: `src/pagelet/routes.lg`
 - Test: `test/pagelet/routes_test.lg`
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
   In `events-to-stats`: `?period=today&tz=Europe%2FAmsterdam` → 200, `[:json :period :tz]` is `"Europe/Amsterdam"`, totals as for the UTC call; `?period=today&tz=Nowhere%2FZone` → 400 with the error text; the plain call's `:tz` is `"UTC"`.
 
-- [ ] **Step 2: Run them to see them fail**
+- [x] **Step 2: Run them to see them fail**
   Run: `mise exec -- lgx test`
   Expected: the new assertions FAIL.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
   The stats route: `(stats/zone db (:tz params))`, 400 on its error, else `(stats/period db params (stats/today db zone) zone)`. Add `percent-decode` and apply it in `query-params` per the design's note; update the `query-params` docstring, which says values are taken as written. Update the route's comment block if it describes the query string.
 
-- [ ] **Step 4: Run the tests**
+- [x] **Step 4: Run the tests**
   Run: `mise exec -- lgx test`
   Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
   `git commit -m "routes: stats take the viewer's time zone as tz"`
 
 ### Task 4: The dashboard sends its zone and drops "UTC"
@@ -207,21 +211,21 @@ No migration, no change to `ingest.lg`, `db.lg` or the tracker.
 - Modify: `ui/src/api.ts`, `ui/src/format.ts`, `ui/src/components/PeriodControl.tsx`, `ui/src/components/Timeseries.tsx`
 - Test: `ui/test/format.test.ts`
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
   In `format.test.ts`: set `process.env.TZ = 'Europe/Amsterdam'` first, then the `localDay` cases from the design (fixed bases, the two DST days), `longDate('2026-09-30T13:00')` → `"Sep 30, 13:00"` and `longDate('2026-09-23')` → `"Wed, Sep 23"`. Import `localDay` and `longDate`.
 
-- [ ] **Step 2: Run them to see them fail**
+- [x] **Step 2: Run them to see them fail**
   Run: `mise exec -- lgx ui-test`
   Expected: FAIL (no `localDay`; `longDate` says UTC).
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
   `format.ts`: `zone`, `localDay` (calendar shift with `setDate`, per the design), `isCurrent`'s default, `longDate`, the header comment. `api.ts`: `tz: zone()` in `periodQuery`, `tz: string` in `Stats.period`. `PeriodControl.tsx`: `localDay`, the hint. `Timeseries.tsx`: the header. Keep `format.ts` free of runtime imports (the test loads it straight into Node).
 
-- [ ] **Step 4: Run the tests and the type check**
+- [x] **Step 4: Run the tests and the type check**
   Run: `mise exec -- lgx ui-test` and `cd ui && npx tsc --noEmit`
   Expected: PASS, no type errors.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
   `git commit -m "ui: reports in the browser's time zone"`
 
 ### Task 5: The browser test, docs and the PR
@@ -230,19 +234,36 @@ No migration, no change to `ingest.lg`, `db.lg` or the tracker.
 - Create: `e2e/tests/timezone.spec.js`
 - Modify: `docs/dashboard.md`, `README.md`, `docs/KNOWLEDGE.md`, this plan
 
-- [ ] **Step 1: Write the browser spec**
+- [x] **Step 1: Write the browser spec**
   `timezone.spec.js` as in the design's Testing section (`test.use({ timezoneId: 'Asia/Tokyo' })`, one pageview, the `/stats` response's `tz`, `period.from` and the hour bucket, the popover hint, delete the site). Use `helpers.js` (`signIn`, `apiLogin`, `createSite`, `deleteSite`, `uniqueDomain`).
 
-- [ ] **Step 2: Run the browser tests**
+- [x] **Step 2: Run the browser tests**
   Run: `mise exec -- lgx e2e`
   Expected: every spec PASSES, the new one included. If 8099 is taken, `E2E_PORT=8098`.
 
-- [ ] **Step 3: Docs**
+> Deviation: the spec matches `/stats?period=today` as well as the zone. Signed in, the overview's cards ask for 7 days first, and the navigation aborts that request, so a looser match read a dropped body.
+
+- [x] **Step 3: Docs**
   `docs/dashboard.md`, `README.md` and the KNOWLEDGE section per the design's Docs section. `/writing-clearly` applies.
 
-- [ ] **Step 4: The whole check**
+- [x] **Step 4: The whole check**
   Run: `mise exec -- lgx check`
   Expected: server tests, UI unit tests and browser tests all PASS.
 
-- [ ] **Step 5: Mark the plan executed, commit, open the PR**
+- [x] **Step 5: Mark the plan executed, commit, open the PR**
   Add `**Status: completed <date>.**` and a short summary at the end of this plan, as the earlier plans have. `git commit -m "docs: reports in the viewer's time zone"`, push, and open a PR titled `Show reports in the viewer's time zone`.
+
+## Summary
+
+Shipped as planned. The dashboard sends the browser's zone as `tz` on the stats endpoint. The server cuts periods at that zone's midnight, buckets the chart in local hours and days, and compares with the same number of local days before. No `tz` means UTC, and an unknown zone answers 400. The custom range hint now names the zone, and "UTC" is gone from the chart.
+
+Verification: `lgx check` passes with 55 server tests, 8 UI unit tests and 13 browser specs. Against the built binary, one visit at 00:xx UTC showed at 09:00 in Tokyo and at 17:00 the day before in Los Angeles.
+
+Codex reviews: both plan rounds were folded in before execution (calendar-safe `localDay`, local-day comparison spans, midnight-DST zones documented). The four task reviews found nothing to fix.
+
+Deviations, in one place:
+- The fall-back case is its own test, `a-fall-back-day`, not part of `hours` (Task 2).
+- The browser spec matches `/stats?period=today`, since the overview's 7-day requests come first and are aborted by the navigation (Task 5).
+- Task 1 passed `"UTC"` from the route until Task 3, as the plan allowed.
+
+What the plan could have specified better: the browser spec's request match, since the overview's own stats calls were knowable from `Sites.tsx`.
