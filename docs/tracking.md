@@ -70,6 +70,8 @@ The flag is stored by the site, in one browser:
   `example.com` and `www.example.com` count as different sites here, so
   set it on the one you open.
 - Clearing the site's data in the browser removes the flag.
+- Opening a page from the dashboard's Pages or "Right now" card is a
+  visit like any other, so set the flag in the browser you open them from.
 
 ## What is collected
 

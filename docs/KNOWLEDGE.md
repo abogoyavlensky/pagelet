@@ -440,3 +440,15 @@ pagelet deploys to the `personal` cluster (linkboard's) with `uc` 0.20.0;
   `Object.defineProperty(window, "localStorage", { get() { throw ... } })`
   makes every `localStorage` access throw: the e2e stand-in for blocked
   storage.
+
+## Clickable pages (2026-10-05)
+
+- `pageUrl` in `ui/src/format.ts` assumes https and appends the stored
+  path verbatim; in hash mode the fragment is already in the path, so
+  `/#/about` needs no special case.
+- `domain` is optional from `Body` down to `Pages` and `LiveCard`: the
+  report can render before the site list resolves, and a row without a
+  domain stays plain text rather than linking to a placeholder.
+- Only the name is the anchor, kept `relative` so it sits above the row's
+  absolutely positioned bar. Sources and the other breakdowns pass no
+  `href`, so they stay plain text by construction.

@@ -23,6 +23,11 @@ sign-out) over a grid of cards:
   views), countries, and devices,
   browsers or systems (visitors and share), and custom events.
 
+Each page in the top pages and in the "Right now" card links to that page
+on the site, in a new tab. The link is `https://` plus the site's domain as
+entered plus the path, so a site served over plain http, or only on `www`,
+may need its address corrected by hand.
+
 A visit is a visitor's day (see [What is collected](tracking.md#what-is-collected)), and a bounce is a
 visitor whose only event in the period is one page view. Visit duration
 is the average time the site's pages were visible to a visit, and time on
