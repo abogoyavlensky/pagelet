@@ -5,7 +5,7 @@ page views, custom events, and time on page across your websites.
 
 ![Pagelet dashboard showing traffic, engagement, top pages and sources](docs/images/dashboard.png)
 
-*Dashboard with sample data.*
+[*An example of a public dashboard*](https://pagelet.absky.dev/sites/904d1886c470)
 
 ## Highlights
 
